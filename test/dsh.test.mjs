@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { setTimeout as delay } from 'node:timers/promises';
-import { relayRequest } from '../app/dsh/adapter.mjs';
+import { relayRequest, registerTools } from '../app/dsh/adapter.mjs';
 function deferred() { let resolve, reject; const promise = new Promise((a,b) => { resolve=a; reject=b; }); promise.catch(()=>{}); return { promise, resolve, reject, cancel() { reject(Error('cancelled')); } }; }
 const request = () => ({ agent: { id: 'test-live-root' }, signal: new AbortController().signal, questions: [{ id: 'choice', question: '选什么？', options: [{ label: 'A' }, { label: 'B' }] }] });
 test('DSH 原生电脑卡片先创建，手机自由答案返回同一请求并取消卡片', async () => {
@@ -26,4 +26,16 @@ test('DSH 审阅意图及无存活 agent 的请求不发 QQ', async () => {
     let sent = false; const original = { answers: [] };
     assert.equal(await relayRequest(req, r => { assert.equal(r,req); return original; }, { open() { sent = true; } }), original); assert.equal(sent,false);
   }
+});
+test('DSH 工具直接注册 JSON Schema，不依赖外部 SDK，仍须先通过电脑验证', async () => {
+  const tools = []; let asks = 0;
+  const ctx = { tools: { register: t => tools.push(t) }, userQuestions: { async ask() { asks++; return { answers: [{ id: 'answer', selected: [], custom: '看到表单' }] }; } } };
+  registerTools(ctx, { open() { throw Error('test must not contact QQ'); } });
+  assert.equal(tools.length, 2); assert.equal(tools[0].parameters.type, 'object'); assert.deepEqual(tools[0].parameters.required, ['question']);
+  assert.equal(tools[0].parameters.additionalProperties, false); assert.equal(tools[0].output.schema.required[0], 'answers');
+  const exec = { agent: { id: 'root' }, signal: new AbortController().signal, callId: 'test' };
+  await assert.rejects(tools[1].execute({question:'test'}, exec), /先调用/);
+  assert.equal(asks, 0); assert.equal((await tools[0].execute({question:'test'}, exec)).answers[0].custom, '看到表单');
+  await assert.rejects(tools[0].execute({question:'test', contactId:'different'}, exec), /无效/);
+  assert.equal(asks, 1);
 });

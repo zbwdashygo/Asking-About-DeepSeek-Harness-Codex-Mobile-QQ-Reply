@@ -2,11 +2,11 @@
 
 让 Codex 和 DeepSeek Harness 的普通澄清问题先显示在电脑，再通过独立 QQ 小号发给自己的大号。手机回复会返回同一次提问；电脑和手机只采用一次有效答复。
 
-**Windows 10/11 x64 · .NET Framework 4.8 · 免费非商业集成 · 0.3.0-beta.1**
+**Windows 10/11 x64 · .NET Framework 4.8 · 免费非商业集成 · 0.3.0-beta.2**
 
 ## 下载和首次使用
 
-从本仓库 Releases 下载 `StellaRelay-0.3.0-beta.1-windows-x64.zip`，解压到固定、可写目录，双击 `StellaRelay.exe`。不要仅复制 EXE；保留旁边的 `app` 文件夹。
+从本仓库 Releases 下载 `StellaRelay-0.3.0-beta.2-windows-x64.zip`，解压到固定、可写目录，双击 `StellaRelay.exe`。不要仅复制 EXE；保留旁边的 `app` 文件夹。
 
 1. 填写自己的专用 QQ 小号和接收消息的大号。两个号码需要事先互加好友。点击“保存账号”。
 2. 点击“下载独立环境”，或导入上游 v4.18.38 的 `NapCat.Shell.Windows.Node.zip`。程序核对 SHA-256 后创建独立运行环境。
@@ -17,7 +17,7 @@
 
 ## Codex
 
-点击“连接 Codex 项目”，选择要启用的项目。确认后，仅更新该目录的 `.codex/config.toml` 和 `AGENTS.md`，保留原内容并生成备份。不会改全局审批设置或自动信任项目。
+点击“连接 Codex 项目”仅启用选定目录；或点击“Codex 全局启用”，把普通问答工具与规则安装到当前用户的 `~/.codex/config.toml` 和 `~/.codex/AGENTS.md`，供其他项目加载。两种方式均保留原内容并生成备份，不修改审批设置或自动信任项目。已打开的聊天需要重新加载 MCP 与指令；只有实际调用转发工具的问题才会同步 QQ。
 
 回到 Codex，按客户端提示信任自己选择的项目，然后加载或 Restart `stella_relay`。对助手说：
 
@@ -67,6 +67,8 @@ node --test test/*.test.mjs
 ## 验证范围
 
 本发布是测试版。仓库包含账号参数校验、来源及编号校验、自由回答、双端竞争、MCP 协议、DSH 原生服务适配逻辑及 Windows 文件配置测试。测试中的虚拟客户端不等于真实桌面联调；新使用者必须在自己的客户端完成电脑和手机各一次实测。
+
+2026-10-16 已在一台 Windows 电脑完成真实 Codex 和 DSH 0.2.0-rc.2 联调：电脑原生卡片先显示，手机 QQ 回答返回原问题，DSH 待答卡片关闭。该结果不代表其他客户端版本均兼容。
 
 ## 许可和上游资料
 

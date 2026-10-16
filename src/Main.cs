@@ -38,7 +38,7 @@ namespace StellaRelay {
   }
   internal sealed class MainWindow : Form {
     private Profile profile; private TextBox bot = new TextBox(), contact = new TextBox(); private Label state = new Label();
-    private Button save, prepare, import, start, stop, qr, attach, dsh, remove; private Timer timer = new Timer(); private bool busy, checking;
+    private Button save, prepare, import, start, stop, qr, attach, userAttach, dsh, remove; private Timer timer = new Timer(); private bool busy, checking;
     private static Color Teal = Color.FromArgb(16, 125, 119);
     public MainWindow() {
       Text = "Stella Relay · 手机问答"; ClientSize = new Size(680, 590); AutoScaleMode = AutoScaleMode.Dpi;
@@ -65,6 +65,11 @@ namespace StellaRelay {
       integrations.Controls.Add(new Label { Text = "Codex", Font = new Font(Font, FontStyle.Bold), Bounds = new Rectangle(20, 18, 550, 28) });
       integrations.Controls.Add(new Label { Text = "选择项目后写入项目配置并保留备份。按 Codex 提示信任该项目，\n重新加载 stella_relay，然后让助手测试电脑表单与 QQ。", Bounds = new Rectangle(20, 55, 580, 65) });
       attach = Button(integrations, "连接 Codex 项目", 20, 124, delegate { Attach(); });
+      userAttach = Button(integrations, "Codex 全局启用", 212, 124, delegate {
+        try { RequireProfile(); if (MessageBox.Show(this, "将备份后更新当前用户的 ~/.codex/config.toml 和 ~/.codex/AGENTS.md，让其他 Codex 项目也可使用普通问答转发工具。\n\n不修改项目信任或权限审批。已打开的聊天需要重新加载。是否继续？", "Codex 用户级启用", MessageBoxButtons.OKCancel, MessageBoxIcon.Information) != DialogResult.OK) return;
+          Backend.AttachUser(profile); MessageBox.Show(this, "用户级配置已保存。请重新加载 Codex 的 stella_relay 和聊天指令，再从电脑提交首次测试表单。", "配置完成");
+        } catch (Exception e) { ShowError(e); }
+      });
       integrations.Controls.Add(new Label { Text = "DeepSeek Harness", Font = new Font(Font, FontStyle.Bold), Bounds = new Rectangle(20, 190, 550, 28) });
       integrations.Controls.Add(new Label { Text = "使用 DSH 原生提问插件。生成当前小号的插件配置后，\n按说明在 DSH 的插件管理页面安装本地组合包。", Bounds = new Rectangle(20, 226, 580, 55) });
       dsh = Button(integrations, "生成 DSH 配置", 20, 292, delegate { try { RequireProfile(); DshConfig.Export(profile); Open(Path.Combine(Backend.DirectoryFor(profile), "dsh-setup.txt")); } catch (Exception e) { ShowError(e); } });
@@ -84,7 +89,7 @@ namespace StellaRelay {
       if (busy) return; busy = true; SetEnabled(false);
       try { await action(); } catch (Exception e) { ShowError(e); } finally { busy = false; if (!IsDisposed) SetEnabled(true); }
     }
-    private void SetEnabled(bool value) { foreach (Button button in new[] { save, prepare, import, start, stop, qr, attach, dsh, remove }) if (button != null) button.Enabled = value; bot.Enabled = value; contact.Enabled = value; }
+    private void SetEnabled(bool value) { foreach (Button button in new[] { save, prepare, import, start, stop, qr, attach, userAttach, dsh, remove }) if (button != null) button.Enabled = value; bot.Enabled = value; contact.Enabled = value; }
     private async Task Install(string file) {
       await Run(async () => { RequireProfile(); if (file == null && MessageBox.Show(this, "将从 NapCat 官方 GitHub 下载独立运行组件（约 124 MB）。仅供免费非商业使用，需遵守上游许可。是否继续？", "准备运行环境", MessageBoxButtons.OKCancel, MessageBoxIcon.Information) != DialogResult.OK) return;
         await RuntimeManager.Install(profile, file, new Progress<string>(text => { if (!IsDisposed) state.Text = text; })); });

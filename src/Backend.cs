@@ -76,7 +76,7 @@ namespace StellaRelay {
         serviceObject = Activator.CreateInstance(Type.GetTypeFromProgID("Schedule.Service", true)); dynamic service = serviceObject; service.Connect();
         folderObject = service.GetFolder("\\"); dynamic folder = folderObject;
         try { taskObject = folder.GetTask(TaskName(p)); }
-        catch (Exception e) { if ((uint)e.HResult != 0x80070002 && (uint)e.HResult != 0x8004130F) throw; }
+        catch (Exception e) { if ((uint)e.HResult != 0x80070002 && (uint)e.HResult != 0x80070003 && (uint)e.HResult != 0x8004130F) throw; }
         string exe = Path.Combine(AppRoot, "StellaRelay.exe");
         string arguments = "--worker \"" + ConfigFor(p) + "\"";
         string description = "Stella Relay isolated profile " + p.installId;
@@ -157,9 +157,17 @@ namespace StellaRelay {
       return original.Substring(0, first) + begin + "\r\n" + block + "\r\n" + end + original.Substring(last + end.Length);
     }
     public static void AttachProject(Profile p, string project) {
-      Validate(p); if (!Directory.Exists(project)) throw new InvalidOperationException("项目目录不存在。");
+      if (!Directory.Exists(project)) throw new InvalidOperationException("项目目录不存在。");
+      AttachConfiguration(p, Path.Combine(Path.GetFullPath(project), ".codex"), Path.Combine(project, "AGENTS.md"), "project-instructions.md");
+    }
+    public static void AttachUser(Profile p, string codexDirectory = null) {
+      string directory = codexDirectory ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".codex");
+      AttachConfiguration(p, Path.GetFullPath(directory), Path.Combine(directory, "AGENTS.md"), "user-instructions.md");
+    }
+    private static void AttachConfiguration(Profile p, string folder, string agents, string instructionFile) {
+      Validate(p);
       if (!File.Exists(Path.Combine(RuntimeFor(p), "node.exe"))) throw new InvalidOperationException("请先准备独立运行环境。");
-      string folder = Path.Combine(Path.GetFullPath(project), ".codex"), config = Path.Combine(folder, "config.toml"), agents = Path.Combine(project, "AGENTS.md");
+      string config = Path.Combine(folder, "config.toml");
       string oldConfig = File.Exists(config) ? File.ReadAllText(config, Encoding.UTF8) : "", oldAgents = File.Exists(agents) ? File.ReadAllText(agents, Encoding.UTF8) : "";
       const string begin = "# STELLA RELAY CONFIG START", end = "# STELLA RELAY CONFIG END";
       if (!oldConfig.Contains(begin) && Regex.IsMatch(oldConfig, @"(?m)^\s*\[mcp_servers\.(?:stella_relay|""stella_relay"")\]")) throw new InvalidOperationException("项目已有 stella_relay 服务配置，未覆盖。请先检查。");
@@ -168,7 +176,7 @@ namespace StellaRelay {
       string local = Json.Serialize(ConfigFor(p).Replace('\\', '/'));
       string block = "[mcp_servers.stella_relay]\r\ncommand = " + node + "\r\nargs = [" + server + ", \"--config\", " + local + "]\r\nstartup_timeout_sec = 10\r\ntool_timeout_sec = 600";
       string newConfig = MergeBlock(oldConfig, begin, end, block);
-      string instructions = File.ReadAllText(Path.Combine(AppRoot, "app", "project-instructions.md"), Encoding.UTF8);
+      string instructions = File.ReadAllText(Path.Combine(AppRoot, "app", instructionFile), Encoding.UTF8);
       string newAgents = MergeBlock(oldAgents, "<!-- STELLA RELAY PUBLIC START -->", "<!-- STELLA RELAY PUBLIC END -->", instructions.Trim());
       Directory.CreateDirectory(folder); string stamp = DateTime.UtcNow.ToString("yyyyMMddHHmmssfff") + "-" + Guid.NewGuid().ToString("N").Substring(0, 6);
       if (File.Exists(config)) File.Copy(config, config + ".stella-" + stamp + ".bak");

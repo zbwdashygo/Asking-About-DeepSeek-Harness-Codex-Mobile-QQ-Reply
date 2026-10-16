@@ -46,11 +46,24 @@ export async function apply(ctx, config = {}) {
   const relayConfig = JSON.parse(readFileSync(location, 'utf8'));
   const mobile = new IsolatedQQ({ config: relayConfig });
   ctx.on('dispose', () => mobile.close());
-  const { defineTool } = await import('@deepseek-ai/dsh-tools');
-  registerTools(ctx, mobile, defineTool);
+  registerTools(ctx, mobile);
 }
 
-export function registerTools(ctx, mobile, defineTool) {
+// The public registry accepts JSON-schema definitions directly. Avoid loading
+// another copy of the host SDK through a profile's module-resolution map.
+export function relayToolDefinition(options) {
+  return { ...options, parameters: {
+    type: 'object', properties: {
+      question: { type: 'string', minLength: 1, maxLength: 10000 },
+      choices: { type: 'array', minItems: 2, maxItems: 6, items: { type: 'string', maxLength: 200 } },
+      context: { type: 'string', maxLength: 500 }
+    }, required: ['question'], additionalProperties: false
+  }, output: { ...options.output, schema: { type: 'object', properties: {
+    answers: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' }, selected: { type: 'array', items: { type: 'string' } }, custom: { type: 'string' } }, required: ['id', 'selected'], additionalProperties: false } }
+  }, required: ['answers'], additionalProperties: false } } };
+}
+
+export function registerTools(ctx, mobile, defineTool = relayToolDefinition) {
   let verified = false;
   for (const test of [true, false]) ctx.tools.register(defineTool({
     name: test ? 'stella_test_desktop_form' : 'stella_ask_on_desktop',
@@ -64,6 +77,7 @@ export function registerTools(ctx, mobile, defineTool) {
     output: { schema: { type: 'object', additionalProperties: true, properties: {} }, render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }] },
     async execute(args, exec) {
       if (!test && !verified) throw Error('请先调用 stella_test_desktop_form，并在电脑真实提交一次');
+      if (!args || typeof args !== 'object' || Array.isArray(args) || Object.keys(args).some(k => !['question', 'choices', 'context'].includes(k))) throw Error('无效提问参数');
       const input = validateQuestion(args);
       const request = { agent: exec.agent, signal: exec.signal, wait: { callId: exec.callId }, questions: [{ id: 'answer', question: input.question, ...(input.context ? { detail: input.context } : {}), ...(input.choices ? { options: input.choices.map(label => ({ label })) } : {}) }] };
       const result = test ? await ctx.userQuestions.ask(request) : await relayRequest(request, native => ctx.userQuestions.ask(native), mobile);

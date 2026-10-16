@@ -26,8 +26,16 @@ namespace StellaRelay {
         Backend.AttachProject(first, project); Assert(attached == File.ReadAllText(configFile), "idempotent attachment");
         Assert(File.ReadAllText(agentsFile).Contains("User instructions"), "preserve instructions");
         Assert(Directory.GetFiles(Path.Combine(project, ".codex"), "*.bak").Length >= 1, "backups created");
+        string userScope = Path.Combine(root, "test-user-scope", ".codex"); Directory.CreateDirectory(userScope);
+        File.WriteAllText(Path.Combine(userScope, "config.toml"), "approval_policy = \"on-request\"\n");
+        File.WriteAllText(Path.Combine(userScope, "AGENTS.md"), "Existing user instructions\n");
+        Backend.AttachUser(first, userScope);
+        Assert(File.ReadAllText(Path.Combine(userScope, "config.toml")).Contains("approval_policy = \"on-request\"") && File.ReadAllText(Path.Combine(userScope, "config.toml")).Contains("mcp_servers.stella_relay"), "user scope preserves approval policy");
+        Assert(File.ReadAllText(Path.Combine(userScope, "AGENTS.md")).Contains("Existing user instructions"), "user scope preserves instructions");
+        Assert(!File.ReadAllText(Path.Combine(userScope, "config.toml")).Contains("trust_level"), "user scope does not grant trust");
         DshConfig.Export(first); string dsh = Path.Combine(Backend.DirectoryFor(first), "dsh-plugin");
         Assert(File.Exists(Path.Combine(dsh, "app", "dsh", "adapter.mjs")) && File.Exists(Path.Combine(dsh, "package.json")), "DSH local bundle generated");
+        Assert(File.ReadAllText(Path.Combine(dsh, "cordis.patch.yml")).StartsWith("- insert:"), "DSH bundle inserts its plugin");
         Assert(!File.ReadAllText(Path.Combine(dsh, "package.json")).Contains(first.token), "no token in bundle manifest");
         string archive = Path.Combine(root, "bad.zip");
         using (ZipArchive zip = ZipFile.Open(archive, ZipArchiveMode.Create)) { ZipArchiveEntry entry = zip.CreateEntry("../escape.txt"); using (StreamWriter writer = new StreamWriter(entry.Open())) writer.Write("bad"); }
