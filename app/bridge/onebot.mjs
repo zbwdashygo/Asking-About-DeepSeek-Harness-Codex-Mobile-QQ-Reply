@@ -2,12 +2,13 @@ import { randomUUID } from 'node:crypto';
 import { loadConfig, validateConfig } from './config.mjs';
 import { Questions } from './questions.mjs';
 import { normalizeMobileAnswer } from './coordinator.mjs';
+import { validateCompletion } from './completion.mjs';
 export class IsolatedQQ {
   constructor({ config, Socket = WebSocket } = {}) {
     this.config = config ? validateConfig(config) : loadConfig();
     this.Socket = Socket;
     const c = this.config;
-    this.questions = new Questions(c); this.calls = new Map(); this.waiters = new Map(); this.ready = false;
+    this.questions = new Questions(c); this.calls = new Map(); this.waiters = new Map(); this.completions = new Map(); this.ready = false;
   }
   async connect() {
     if (this.ready) return;
@@ -72,6 +73,26 @@ export class IsolatedQQ {
   }
   notify(text) {
     void this.call('send_private_msg', { user_id: Number(this.config.contactId), message: [{ type: 'text', data: { text } }] }).catch(() => {});
+  }
+  async sendCompletion(input) {
+    const { taskId, summary } = validateCompletion(input);
+    const previous = this.completions.get(taskId);
+    if (previous) {
+      if (previous.summary !== summary) throw Error('相同任务编号已用于其他完成摘要');
+      return previous.promise;
+    }
+    const promise = (async () => {
+      await this.connect();
+      const response = await this.call('send_private_msg', {
+        user_id: Number(this.config.contactId),
+        message: [{ type: 'text', data: { text: `【stella · 工作完成】\n任务：${taskId}\n${summary}\n\n此消息为完成通知，无需回复。` } }]
+      });
+      if (response?.message_id == null) throw Error('QQ 未返回消息编号，送达状态未知；不会自动重发');
+      return { sent: true, taskId, messageId: String(response.message_id) };
+    })();
+    // Retain failed/uncertain attempts too: retrying could duplicate a delivered message.
+    this.completions.set(taskId, { summary, promise });
+    return promise;
   }
   async open(question) {
     await this.connect(); this.questions.prune();

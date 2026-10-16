@@ -31,6 +31,8 @@ test('DSH 工具直接注册 JSON Schema，不依赖外部 SDK，仍须先通过
   const tools = []; let asks = 0;
   const ctx = { tools: { register: t => tools.push(t) }, userQuestions: { async ask() { asks++; return { answers: [{ id: 'answer', selected: [], custom: '看到表单' }] }; } } };
   registerTools(ctx, { open() { throw Error('test must not contact QQ'); } });
+  const completion = tools.splice(tools.findIndex(t => t.name === 'stella_notify_completion'), 1)[0];
+  assert.deepEqual(completion.parameters.required, ['taskId', 'summary']);
   assert.equal(tools.length, 2); assert.equal(tools[0].parameters.type, 'object'); assert.deepEqual(tools[0].parameters.required, ['question']);
   assert.equal(tools[0].parameters.additionalProperties, false); assert.equal(tools[0].output.schema.required[0], 'answers');
   const exec = { agent: { id: 'root' }, signal: new AbortController().signal, callId: 'test' };
@@ -38,4 +40,12 @@ test('DSH 工具直接注册 JSON Schema，不依赖外部 SDK，仍须先通过
   assert.equal(asks, 0); assert.equal((await tools[0].execute({question:'test'}, exec)).answers[0].custom, '看到表单');
   await assert.rejects(tools[0].execute({question:'test', contactId:'different'}, exec), /无效/);
   assert.equal(asks, 1);
+});
+
+test('DSH 完成通知不打开用户提问或等待电脑验证', async () => {
+  const tools = []; let sent;
+  registerTools({ tools: { register: t => tools.push(t) }, userQuestions: { ask() { throw Error('不得提问'); } } }, { async sendCompletion(args) { sent = args; return { sent: true, taskId: args.taskId, messageId: '42' }; } });
+  const args = { taskId: 'dsh-test', summary: '已完成' };
+  assert.equal((await tools.find(t => t.name === 'stella_notify_completion').execute(args)).sent, true);
+  assert.deepEqual(sent, args);
 });

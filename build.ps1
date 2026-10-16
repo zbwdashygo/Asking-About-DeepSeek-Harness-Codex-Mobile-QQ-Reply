@@ -28,7 +28,7 @@ try {
   $process = Start-Process -FilePath $exe -ArgumentList @('--self-test',('"' + $selfTest + '"')) -Wait -PassThru -WindowStyle Hidden
   if ($process.ExitCode -ne 0) { if (Test-Path -LiteralPath (Join-Path $selfTest 'self-test-error.txt')) { Get-Content -LiteralPath (Join-Path $selfTest 'self-test-error.txt') }; throw 'Windows application self-test failed.' }
   Get-Content -LiteralPath (Join-Path $selfTest 'self-test.json')
-  $package = Join-Path $output 'StellaRelay-0.3.0-beta.2-windows-x64.zip'
+  $package = Join-Path $output 'StellaRelay-0.3.0-beta.3-windows-x64.zip'
   if (Test-Path -LiteralPath $package) { throw 'Release ZIP exists; choose a new output directory to preserve previous builds.' }
   Compress-Archive -LiteralPath (Get-ChildItem -LiteralPath $stage | ForEach-Object FullName) -DestinationPath $package -CompressionLevel Optimal
   $hash = (Get-FileHash -LiteralPath $package -Algorithm SHA256).Hash.ToLowerInvariant()

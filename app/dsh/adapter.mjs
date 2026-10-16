@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { IsolatedQQ } from '../bridge/onebot.mjs';
 import { normalizeMobileAnswer } from '../bridge/coordinator.mjs';
 import { validateQuestion } from '../bridge/coordinator.mjs';
+import { completionSchema } from '../bridge/completion.mjs';
 
 export const name = 'stella-relay-dsh';
 export const inject = ['tools', 'userQuestions'];
@@ -64,6 +65,13 @@ export function relayToolDefinition(options) {
 }
 
 export function registerTools(ctx, mobile, defineTool = relayToolDefinition) {
+  ctx.tools.register({
+    name: 'stella_notify_completion',
+    description: '用户要求工作完成后发送 QQ 通知时调用。仅在实际完成后发送一次简短结果或下载链接给已配置唯一联系人，不提问、不等待回复，不发送日常进度。失败如实报告，不自动重发。',
+    parameters: completionSchema, timeoutMs: 30000,
+    output: { schema: { type: 'object', properties: { sent: { type: 'boolean' }, taskId: { type: 'string' }, messageId: { type: 'string' } }, required: ['sent', 'taskId', 'messageId'], additionalProperties: false }, render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }] },
+    execute: args => mobile.sendCompletion(args)
+  });
   let verified = false;
   for (const test of [true, false]) ctx.tools.register(defineTool({
     name: test ? 'stella_test_desktop_form' : 'stella_ask_on_desktop',

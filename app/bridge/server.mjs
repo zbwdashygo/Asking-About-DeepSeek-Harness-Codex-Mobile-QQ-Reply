@@ -2,6 +2,7 @@ import readline from 'node:readline';
 import { randomUUID } from 'node:crypto';
 import { coordinate } from './coordinator.mjs';
 import { IsolatedQQ } from './onebot.mjs';
+import { completionSchema } from './completion.mjs';
 const forms = new Map(), active = new Map();
 let clientCapabilities = {}, qq, desktopVerified = false;
 const send = message => process.stdout.write(JSON.stringify({ jsonrpc: '2.0', ...message }) + '\n');
@@ -19,6 +20,7 @@ const desktop = {
 };
 const schema = { type: 'object', properties: { question: { type: 'string', maxLength: 10000 }, choices: { type: 'array', items: { type: 'string', maxLength: 200 }, minItems: 2, maxItems: 6 }, context: { type: 'string', maxLength: 500 } }, required: ['question'], additionalProperties: false };
 const tools = [
+  { name: 'notify_completion', description: '用户要求工作完成后发送一次 QQ 通知时调用。仅在实际完成后发送简短结果或下载链接到已配置唯一联系人，不提问、不等待手机回复，不转发日常进度。相同任务编号在当前连接内只发送一次；接口失败如实报告，不自动重试。', inputSchema: completionSchema, annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false } },
   { name: 'test_desktop_form', description: '兼容性测试：只显示 Codex 原生表单并返回电脑回答，不联系 QQ。先通过本测试才能启用双端提问。', inputSchema: schema, annotations: { readOnlyHint: true } },
   { name: 'ask_on_desktop', description: '先请求显示 Codex 原生表单，1 秒后向独立 stella 专用号的唯一好友发送问题副本。电脑可直接回答；只采用两端的第一次有效答复，撤销另一端待答。仅用于澄清问题和方案选择，不代替系统权限审批。当前应用是否显示及关闭表单仍需实测。', inputSchema: schema, annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false } }
 ];
@@ -39,7 +41,13 @@ async function handle(m) {
     else if (m.method === 'tools/call') {
       const controller = new AbortController(); active.set(m.id, controller);
       try {
-        if (!['test_desktop_form', 'ask_on_desktop'].includes(m.params?.name)) throw Error('未知工具');
+        if (!['test_desktop_form', 'ask_on_desktop', 'notify_completion'].includes(m.params?.name)) throw Error('未知工具');
+        if (m.params.name === 'notify_completion') {
+          qq ??= new IsolatedQQ();
+          const receipt = await qq.sendCompletion(m.params.arguments);
+          result = { content: [{ type: 'text', text: JSON.stringify(receipt) }] };
+          send({ id: m.id, result }); return;
+        }
         if (m.params.name === 'ask_on_desktop' && !desktopVerified) throw Error('先运行 test_desktop_form 并在电脑提交一次，才能启用 QQ 副本。');
         const input = m.params.arguments ?? {};
         if (Object.keys(input).some(k => !['question', 'choices', 'context'].includes(k))) throw Error('不允许更改账号或接收人');

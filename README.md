@@ -2,11 +2,11 @@
 
 让 Codex 和 DeepSeek Harness 的普通澄清问题先显示在电脑，再通过独立 QQ 小号发给自己的大号。手机回复会返回同一次提问；电脑和手机只采用一次有效答复。
 
-**Windows 10/11 x64 · .NET Framework 4.8 · 免费非商业集成 · 0.3.0-beta.2**
+**Windows 10/11 x64 · .NET Framework 4.8 · 免费非商业集成 · 0.3.0-beta.3**
 
 ## 下载和首次使用
 
-从本仓库 Releases 下载 `StellaRelay-0.3.0-beta.2-windows-x64.zip`，解压到固定、可写目录，双击 `StellaRelay.exe`。不要仅复制 EXE；保留旁边的 `app` 文件夹。
+从本仓库 Releases 下载 `StellaRelay-0.3.0-beta.3-windows-x64.zip`，解压到固定、可写目录，双击 `StellaRelay.exe`。不要仅复制 EXE；保留旁边的 `app` 文件夹。
 
 1. 填写自己的专用 QQ 小号和接收消息的大号。两个号码需要事先互加好友。点击“保存账号”。
 2. 点击“下载独立环境”，或导入上游 v4.18.38 的 `NapCat.Shell.Windows.Node.zip`。程序核对 SHA-256 后创建独立运行环境。
@@ -34,6 +34,12 @@
 > 先调用 stella_test_desktop_form，让我在电脑提交。后续普通澄清和选择题优先使用 stella_ask_on_desktop，权限审批沿用原机制。现在发一个问题让我从手机回答。
 
 适配器调用 DSH 的原生 `userQuestions` 服务。原有 `ask_user_question` 和系统审批没有被拦截；只有使用转发工具的普通提问有 QQ 副本。其他版本须先验证兼容性，不建议添加版本豁免。
+
+## 工作完成通知
+
+已连接的 Codex 聊天在工作实际完成后调用 `notify_completion`，DSH 调用 `stella_notify_completion`，向配置的唯一大号发送一次简短结果与必要下载链接，无需回复。不会把日常进度当作完成通知。
+
+升级后重新连接项目或点击“Codex 全局启用”以更新规则，并重新加载 MCP 与聊天指令；DSH 重新生成并加载插件后，按生成说明启用完成通知。该功能依赖助手调用专用工具，不是对全部客户端完成事件的自动监听。接口确认成功仅代表 QQ 服务已接收，不代表手机已读；失败或超时不会自动重发。
 
 ## 手机怎么回答
 

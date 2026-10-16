@@ -22,6 +22,18 @@ function client(capabilities) {
   send({ id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities, clientInfo: { name: 'test', version: '1' } } });
   return { proc, send, wait, received };
 }
+
+test('MCP 提供完成通知工具，不能指定其他接收人', async () => {
+  const c = client({});
+  try {
+    await c.wait(m => m.id === 1);
+    c.send({ id: 2, method: 'tools/list' });
+    const tool = (await c.wait(m => m.id === 2)).result.tools.find(t => t.name === 'notify_completion');
+    assert.deepEqual(tool.inputSchema.required, ['taskId', 'summary']);
+    assert.equal(tool.inputSchema.additionalProperties, false);
+    assert.equal('contactId' in tool.inputSchema.properties, false);
+  } finally { c.proc.kill(); }
+});
 test('MCP 原生表单请求真实使用 elicitation/create，电脑回答回到原工具调用', async () => {
   const c = client({ elicitation: {} });
   try {

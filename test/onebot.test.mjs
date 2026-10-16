@@ -31,6 +31,37 @@ async function open() {
   const id = [...qq.waiters.keys()][0];
   return { qq, handle, id };
 }
+
+test('完成通知核对账号与好友、发送到唯一联系人，同任务并发只发一次', async () => {
+  const qq = new IsolatedQQ({ config, Socket });
+  try {
+    const args = { taskId: 'release-test', summary: '构建完成，下载链接在当前聊天。' };
+    const [a, b] = await Promise.all([qq.sendCompletion(args), qq.sendCompletion(args)]);
+    assert.deepEqual(a, b); assert.equal(a.sent, true);
+    const messages = qq.socket.sent.filter(m => m.action === 'send_private_msg');
+    assert.equal(messages.length, 1); assert.equal(messages[0].params.user_id, Number(config.contactId));
+    assert.match(messages[0].params.message[0].data.text, /工作完成/); assert.equal(qq.waiters.size, 0);
+    await assert.rejects(qq.sendCompletion({ ...args, summary: '其他摘要' }), /其他完成摘要/);
+    await assert.rejects(qq.sendCompletion({ ...args, contactId: '999999999' }), /不能更改接收人/);
+  } finally { qq.close(); }
+});
+
+test('完成通知接口失败如实报错，同任务不会自动重发', async () => {
+  class FailureSocket extends Socket {
+    send(raw) {
+      const m = JSON.parse(raw);
+      if (m.action !== 'send_private_msg') return super.send(raw);
+      this.sent.push(m); queueMicrotask(() => this.frame({ status: 'failed', retcode: 1, echo: m.echo }));
+    }
+  }
+  const qq = new IsolatedQQ({ config, Socket: FailureSocket });
+  try {
+    const args = { taskId: 'failure', summary: '已完成' };
+    await assert.rejects(qq.sendCompletion(args), /接口返回错误/);
+    await assert.rejects(qq.sendCompletion(args), /接口返回错误/);
+    assert.equal(qq.socket.sent.filter(m => m.action === 'send_private_msg').length, 1);
+  } finally { qq.close(); }
+});
 test('真实接收分支采用带编号的自由文字，并只确认一次', async () => {
   const { qq, handle, id } = await open();
   try {
