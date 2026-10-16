@@ -1,0 +1,13 @@
+dist/
+.build/
+node_modules/
+*.log
+config.local.json
+relay.json
+relay-location.json
+qq-data/
+runtime/
+*.zip
+*.exe
+*.dll
+*.node
