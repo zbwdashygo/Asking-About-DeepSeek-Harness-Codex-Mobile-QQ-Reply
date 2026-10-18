@@ -2,11 +2,11 @@
 
 让 Codex 和 DeepSeek Harness 的普通澄清问题先显示在电脑，再通过独立 QQ 小号发给自己的大号。手机回复会返回同一次提问；电脑和手机只采用一次有效答复。
 
-**Windows 10/11 x64 · .NET Framework 4.8 · 免费非商业集成 · 0.3.0-beta.3**
+**Windows 10/11 x64 · .NET Framework 4.8 · 免费非商业集成 · 0.3.0-beta.4**
 
 ## 下载和首次使用
 
-从本仓库 Releases 下载 `StellaRelay-0.3.0-beta.3-windows-x64.zip`，解压到固定、可写目录，双击 `StellaRelay.exe`。不要仅复制 EXE；保留旁边的 `app` 文件夹。
+从本仓库 Releases 下载 `StellaRelay-0.3.0-beta.4-windows-x64.zip`，解压到固定、可写目录，双击 `StellaRelay.exe`。不要仅复制 EXE；保留旁边的 `app` 文件夹。
 
 1. 填写自己的专用 QQ 小号和接收消息的大号。两个号码需要事先互加好友。点击“保存账号”。
 2. 点击“下载独立环境”，或导入上游 v4.18.38 的 `NapCat.Shell.Windows.Node.zip`。程序核对 SHA-256 后创建独立运行环境。
@@ -27,7 +27,7 @@
 
 ## DeepSeek Harness
 
-当前适配目标为 **0.2.0-rc.2**。点击“生成 DSH 配置”，按打开的说明，在 DSH 侧边栏的“插件”页面安装生成的本地组合包路径，启用后重新加载。
+已验证的适配目标为 **0.2.0-rc.2、0.2.1-rc.2**。点击“生成 DSH 配置”，按打开的说明，在 DSH 侧边栏的“插件”页面安装生成的本地组合包路径，启用后重新加载。
 
 对 DSH 助手说：
 
@@ -40,6 +40,12 @@
 已连接的 Codex 聊天在工作实际完成后调用 `notify_completion`，DSH 调用 `stella_notify_completion`，向配置的唯一大号发送一次简短结果与必要下载链接，无需回复。不会把日常进度当作完成通知。
 
 升级后重新连接项目或点击“Codex 全局启用”以更新规则，并重新加载 MCP 与聊天指令；DSH 重新生成并加载插件后，按生成说明启用完成通知。该功能依赖助手调用专用工具，不是对全部客户端完成事件的自动监听。接口确认成功仅代表 QQ 服务已接收，不代表手机已读；失败或超时不会自动重发。
+
+### DSH 平台升级后
+
+0.3.0-beta.4 修复 DSH 支持的 JSON Schema 子集兼容性，移除插件声明中不支持的长度、数量关键字，执行前仍校验这些约束。原生问答继续使用阻塞式 `ask()`，QQ 回答只结束本题，不中止整轮任务，也不转发计划审阅或权限审批。
+
+升级发行文件后，重新点击“生成 DSH 配置”，在 DSH 重新加载本地插件（未启用热更新时重启 DSH）。兼容范围仅包含已验证的两个版本，未使用版本豁免。早期手工配置若指向 `adapter.fixed.mjs`，应备份后改为本版 `app/dsh/adapter.mjs`，并确保组合包插入插件行、用户配置仅覆盖该行，避免重复挂载。
 
 ## 手机怎么回答
 
@@ -84,3 +90,5 @@ node --test test/*.test.mjs
 - [OpenAI：项目插件与配置](https://developers.openai.com/plugins/build/plugins)
 - [NapCat 上游](https://github.com/NapNeko/NapCatQQ)
 - DSH 的适配契约来自使用者安装版本自带的 `dsh-user-questions`、`dsh-tool-ask-user`、`dsh-plugin-manager` 文档。
+
+2026-10-18 已在 DSH 0.2.1-rc.2 完成新版真实双端联调：电脑卡片提交、独立 QQ 按编号回复、答案返回 DSH 并关闭待答卡片；同时验证该版本随附的真实工具注册与 Schema 校验器。

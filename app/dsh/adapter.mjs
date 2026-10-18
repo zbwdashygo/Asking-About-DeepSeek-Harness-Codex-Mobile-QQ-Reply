@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { IsolatedQQ } from '../bridge/onebot.mjs';
 import { normalizeMobileAnswer } from '../bridge/coordinator.mjs';
 import { validateQuestion } from '../bridge/coordinator.mjs';
-import { completionSchema } from '../bridge/completion.mjs';
+import { validateCompletion } from '../bridge/completion.mjs';
 
 export const name = 'stella-relay-dsh';
 export const inject = ['tools', 'userQuestions'];
@@ -55,9 +55,9 @@ export async function apply(ctx, config = {}) {
 export function relayToolDefinition(options) {
   return { ...options, parameters: {
     type: 'object', properties: {
-      question: { type: 'string', minLength: 1, maxLength: 10000 },
-      choices: { type: 'array', minItems: 2, maxItems: 6, items: { type: 'string', maxLength: 200 } },
-      context: { type: 'string', maxLength: 500 }
+      question: { type: 'string', description: '需要用户回答的问题，1–10000 字符' },
+      choices: { type: 'array', items: { type: 'string' }, description: '可选的 2–6 个选项，每项最多 200 字符' },
+      context: { type: 'string', description: '背景说明，最多 500 字符' }
     }, required: ['question'], additionalProperties: false
   }, output: { ...options.output, schema: { type: 'object', properties: {
     answers: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' }, selected: { type: 'array', items: { type: 'string' } }, custom: { type: 'string' } }, required: ['id', 'selected'], additionalProperties: false } }
@@ -68,9 +68,9 @@ export function registerTools(ctx, mobile, defineTool = relayToolDefinition) {
   ctx.tools.register({
     name: 'stella_notify_completion',
     description: '用户要求工作完成后发送 QQ 通知时调用。仅在实际完成后发送一次简短结果或下载链接给已配置唯一联系人，不提问、不等待回复，不发送日常进度。失败如实报告，不自动重发。',
-    parameters: completionSchema, timeoutMs: 30000,
+    parameters: { type: 'object', properties: { taskId: { type: 'string', description: '本次工作的唯一编号，1–120 字符' }, summary: { type: 'string', description: '完成摘要，1–2000 字符' } }, required: ['taskId', 'summary'], additionalProperties: false }, timeoutMs: 30000,
     output: { schema: { type: 'object', properties: { sent: { type: 'boolean' }, taskId: { type: 'string' }, messageId: { type: 'string' } }, required: ['sent', 'taskId', 'messageId'], additionalProperties: false }, render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }] },
-    execute: args => mobile.sendCompletion(args)
+    execute: args => mobile.sendCompletion(validateCompletion(args))
   });
   let verified = false;
   for (const test of [true, false]) ctx.tools.register(defineTool({
@@ -89,7 +89,8 @@ export function registerTools(ctx, mobile, defineTool = relayToolDefinition) {
       const input = validateQuestion(args);
       const request = { agent: exec.agent, signal: exec.signal, wait: { callId: exec.callId }, questions: [{ id: 'answer', question: input.question, ...(input.context ? { detail: input.context } : {}), ...(input.choices ? { options: input.choices.map(label => ({ label })) } : {}) }] };
       const result = test ? await ctx.userQuestions.ask(request) : await relayRequest(request, native => ctx.userQuestions.ask(native), mobile);
-      if (test) verified = true;
+      // A skipped or empty native card is not proof that the user answered it.
+      if (test) verified = Boolean(result?.answers?.some(answer => answer.id === 'answer' && (answer.selected?.length || (typeof answer.custom === 'string' && answer.custom.trim()))));
       return result;
     }
   }));

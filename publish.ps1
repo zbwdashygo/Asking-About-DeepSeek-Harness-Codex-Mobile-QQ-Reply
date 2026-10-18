@@ -5,11 +5,11 @@ param(
   [switch]$PrepareOnly
 )
 $ErrorActionPreference = 'Stop'
-$version = 'v0.3.0-beta.3'
+$version = 'v0.3.0-beta.4'
 $root = $PSScriptRoot
 if (-not $ReleaseDirectory) { $ReleaseDirectory = Join-Path $root 'dist' }
 $release = [IO.Path]::GetFullPath($ReleaseDirectory)
-$zip = Join-Path $release 'StellaRelay-0.3.0-beta.3-windows-x64.zip'
+$zip = Join-Path $release 'StellaRelay-0.3.0-beta.4-windows-x64.zip'
 $sums = Join-Path $release 'SHA256SUMS.txt'
 $utf8 = New-Object Text.UTF8Encoding($false)
 if ($Repository -notmatch '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$') { throw 'Invalid repository' }
@@ -51,10 +51,10 @@ $head = Api 'GET' ('repos/' + $Repository + '/git/ref/heads/' + $branch)
 $base = Api 'GET' ('repos/' + $Repository + '/git/commits/' + $head.object.sha)
 # Preserve all unrelated remote files and never force-update a branch or tag.
 $tree = Api 'POST' ('repos/' + $Repository + '/git/trees') @{base_tree=$base.tree.sha;tree=$treeEntries}
-$commit = Api 'POST' ('repos/' + $Repository + '/git/commits') @{message='Release Stella Relay 0.3.0-beta.3';tree=$tree.sha;parents=@($head.object.sha)}
+$commit = Api 'POST' ('repos/' + $Repository + '/git/commits') @{message='Release Stella Relay 0.3.0-beta.4';tree=$tree.sha;parents=@($head.object.sha)}
 Api 'PATCH' ('repos/' + $Repository + '/git/refs/heads/' + $branch) @{sha=$commit.sha;force=$false} | Out-Null
 Api 'POST' ('repos/' + $Repository + '/git/refs') @{ref=('refs/tags/' + $version);sha=$commit.sha} | Out-Null
-& $GhPath release create $version --repo $Repository --draft --prerelease --verify-tag --title 'Stella Relay 0.3.0-beta.3' --notes-file (Join-Path $root 'RELEASE-NOTES.md')
+& $GhPath release create $version --repo $Repository --draft --prerelease --verify-tag --title 'Stella Relay 0.3.0-beta.4' --notes-file (Join-Path $root 'RELEASE-NOTES.md')
 if ($LASTEXITCODE -ne 0) { throw 'Draft release creation failed.' }
 & $GhPath release upload $version $zip $sums --repo $Repository
 if ($LASTEXITCODE -ne 0) { throw 'Asset upload failed; release remains a draft.' }

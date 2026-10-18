@@ -48,4 +48,33 @@ test('DSH 完成通知不打开用户提问或等待电脑验证', async () => {
   const args = { taskId: 'dsh-test', summary: '已完成' };
   assert.equal((await tools.find(t => t.name === 'stella_notify_completion').execute(args)).sent, true);
   assert.deepEqual(sent, args);
+  assert.throws(() => tools.find(t => t.name === 'stella_notify_completion').execute({ ...args, contactId: 'other' }), /不能更改接收人/);
+});
+
+test('DSH Schema 使用宿主支持的子集，长度与数量约束在执行前仍生效', async () => {
+  const definitions = [];
+  registerTools({ tools: { register: t => definitions.push(t) }, userQuestions: { ask() { throw Error('无效参数不应打开卡片'); } } }, {});
+  const check = schema => {
+    for (const key of ['minLength', 'maxLength', 'minItems', 'maxItems']) assert.equal(key in schema, false);
+    for (const child of Object.values(schema.properties ?? {})) check(child);
+    if (schema.items) check(schema.items);
+  };
+  for (const t of definitions) { check(t.parameters); check(t.output.schema); }
+  const testTool = definitions.find(t => t.name === 'stella_test_desktop_form');
+  await assert.rejects(testTool.execute({ question: 'x'.repeat(10001) }, {}), /问题/);
+  await assert.rejects(testTool.execute({ question: 'test', choices: ['only'] }, {}), /选项/);
+  const notify = definitions.find(t => t.name === 'stella_notify_completion');
+  assert.throws(() => notify.execute({ taskId: 'test', summary: 'x'.repeat(2001) }), /摘要/);
+});
+
+test('DSH 跳过或空答电脑测试时不启用 QQ，保留真实调用方及取消信号', async () => {
+  for (const answers of [[], [{ id: 'answer', selected: [] }], [{ id: 'answer', selected: [], custom: ' ' }]]) {
+    const definitions = []; let nativeRequest;
+    registerTools({ tools: { register: t => definitions.push(t) }, userQuestions: { async ask(r) { nativeRequest = r; return { answers }; } } }, { open() { throw Error('不得发QQ'); } });
+    const exec = { agent: { id: 'live-root' }, signal: new AbortController().signal, callId: 'native-call' };
+    await definitions.find(t => t.name === 'stella_test_desktop_form').execute({ question: '电脑测试' }, exec);
+    assert.equal(nativeRequest.agent, exec.agent); assert.equal(nativeRequest.signal, exec.signal);
+    assert.equal(nativeRequest.wait.callId, exec.callId);
+    await assert.rejects(definitions.find(t => t.name === 'stella_ask_on_desktop').execute({ question: '双端' }, exec), /先调用/);
+  }
 });

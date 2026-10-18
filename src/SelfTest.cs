@@ -37,6 +37,7 @@ namespace StellaRelay {
         Assert(File.Exists(Path.Combine(dsh, "app", "dsh", "adapter.mjs")) && File.Exists(Path.Combine(dsh, "package.json")), "DSH local bundle generated");
         Assert(File.ReadAllText(Path.Combine(dsh, "cordis.patch.yml")).StartsWith("- insert:"), "DSH bundle inserts its plugin");
         Assert(!File.ReadAllText(Path.Combine(dsh, "package.json")).Contains(first.token), "no token in bundle manifest");
+        Assert(File.ReadAllText(Path.Combine(dsh, "package.json")).Contains("0.2.0-rc.2 || 0.2.1-rc.2") && !File.ReadAllText(Path.Combine(dsh, "package.json")).Contains("dsh-tools"), "DSH verified versions without external SDK peer");
         string archive = Path.Combine(root, "bad.zip");
         using (ZipArchive zip = ZipFile.Open(archive, ZipArchiveMode.Create)) { ZipArchiveEntry entry = zip.CreateEntry("../escape.txt"); using (StreamWriter writer = new StreamWriter(entry.Open())) writer.Write("bad"); }
         bool rejected = false; try { RuntimeManager.Extract(archive, Path.Combine(root, "extract")); } catch (InvalidOperationException) { rejected = true; }
