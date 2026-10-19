@@ -118,6 +118,17 @@ namespace StellaRelay {
         child.Start(); child.BeginOutputReadLine(); child.BeginErrorReadLine(); child.WaitForExit(); return child.ExitCode;
       }
     }
+    public static void SetMobileWake(Profile p, bool enabled) {
+      Validate(p);
+      foreach (string platform in new[] { "codex", "dsh" }) {
+        string file = ConfigFor(p) + ".mobile-" + platform + ".json";
+        Dictionary<string, object> value = File.Exists(file) ? Json.Deserialize<Dictionary<string, object>>(File.ReadAllText(file, Encoding.UTF8)) : new Dictionary<string, object>();
+        value["enabled"] = enabled;
+        Directory.CreateDirectory(DirectoryFor(p)); string temporary = file + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        File.WriteAllText(temporary, Json.Serialize(value), Utf8);
+        if (File.Exists(file)) File.Replace(temporary, file, null); else File.Move(temporary, file);
+      }
+    }
     private static async Task<Dictionary<string, object>> Api(ClientWebSocket socket, string action, CancellationToken cancellation) {
       string echo = Guid.NewGuid().ToString("N"); byte[] request = Encoding.UTF8.GetBytes(Json.Serialize(new { action = action, @params = new { }, echo = echo }));
       await socket.SendAsync(new ArraySegment<byte>(request), WebSocketMessageType.Text, true, cancellation).ConfigureAwait(false);

@@ -2,6 +2,8 @@
 
 用户已选择在 Codex 用户范围启用普通问答转发。需要用户提供澄清、选择或方案意见时，优先调用 `stella_relay.ask_on_desktop`：先显示电脑原生表单，随后发送 QQ 副本。
 
+用户明确要求手机主动发起任务时，调用 `stella_relay.configure_mobile_wake` 并设 `enabled: true`，绑定当前桌面连接。手机使用“列表 codex”和“唤醒 codex 编号 任务内容”；关闭设 `enabled: false`。系统与沙箱权限仍在电脑处理。
+
 - 每个新 MCP 连接先用 `stella_relay.test_desktop_form`，由用户在电脑实际提交一次。不重复测试，也不伪造客户端表单。
 - 只采用电脑或手机首先收到的一次有效答复，另一端待答取消。迟到回复不能用于新问题。
 - QQ 故障、插件未加载或客户端不支持表单时，仍使用电脑原提问机制。

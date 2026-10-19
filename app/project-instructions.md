@@ -2,6 +2,8 @@
 
 本项目已由使用者连接 Stella Relay。普通澄清和选择题使用 `stella_relay.ask_on_desktop`：电脑原生表单先显示，随后才给配置的大号发送 QQ 副本。
 
+用户明确要求手机主动发起任务时，调用 `stella_relay.configure_mobile_wake` 并设 `enabled: true`，绑定当前桌面连接。手机使用“列表 codex”和“唤醒 codex 编号 任务内容”；关闭设 `enabled: false`。系统与沙箱权限仍在电脑处理。
+
 - 每个新 MCP 连接先调用一次 `stella_relay.test_desktop_form`，由用户在电脑实际提交。成功后再使用双端工具；不能用模拟客户端冒充原生窗口。
 - 手机按消息中的编号回复，可使用自己的话回答或选项数字；只采用两端最先收到的一次有效答案。
 - 电脑回答或取消后，手机待答失效；手机回答后请求关闭电脑表单。迟到答复不能用于其他问题。

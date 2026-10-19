@@ -9,7 +9,7 @@ $compiler = Join-Path $env:WINDIR 'Microsoft.NET/Framework64/v4.0.30319/csc.exe'
 if (-not (Test-Path -LiteralPath $compiler)) { throw 'Windows .NET Framework C# compiler is missing.' }
 Push-Location $root
 try {
-  & $NodePath --test test/config.test.mjs test/coordinator.test.mjs test/dsh.test.mjs test/mcp.test.mjs test/onebot.test.mjs
+  & $NodePath --test test/config.test.mjs test/coordinator.test.mjs test/dsh.test.mjs test/mcp.test.mjs test/onebot.test.mjs test/wake.test.mjs test/native-app.test.mjs
   if ($LASTEXITCODE -ne 0) { throw 'Node regression tests failed.' }
   $iconTool = Join-Path $scratch 'IconMaker.exe'
   $icon = Join-Path $scratch 'stella.ico'
@@ -28,7 +28,7 @@ try {
   $process = Start-Process -FilePath $exe -ArgumentList @('--self-test',('"' + $selfTest + '"')) -Wait -PassThru -WindowStyle Hidden
   if ($process.ExitCode -ne 0) { if (Test-Path -LiteralPath (Join-Path $selfTest 'self-test-error.txt')) { Get-Content -LiteralPath (Join-Path $selfTest 'self-test-error.txt') }; throw 'Windows application self-test failed.' }
   Get-Content -LiteralPath (Join-Path $selfTest 'self-test.json')
-  $package = Join-Path $output 'StellaRelay-0.3.0-beta.4-windows-x64.zip'
+  $package = Join-Path $output 'StellaRelay-0.4.0-beta.1-windows-x64.zip'
   if (Test-Path -LiteralPath $package) { throw 'Release ZIP exists; choose a new output directory to preserve previous builds.' }
   Compress-Archive -LiteralPath (Get-ChildItem -LiteralPath $stage | ForEach-Object FullName) -DestinationPath $package -CompressionLevel Optimal
   $hash = (Get-FileHash -LiteralPath $package -Algorithm SHA256).Hash.ToLowerInvariant()

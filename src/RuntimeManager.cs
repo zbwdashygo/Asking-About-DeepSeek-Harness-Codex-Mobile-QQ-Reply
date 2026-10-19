@@ -52,7 +52,7 @@ namespace StellaRelay {
           progress.Report("正在下载独立 QQ 运行环境（约 124 MB）…");
           string partial = archive + ".download"; ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
           using (WebClient client = new WebClient()) {
-            client.Headers.Add("User-Agent", "StellaRelay/0.3.0");
+            client.Headers.Add("User-Agent", "StellaRelay/0.4.0-beta.1");
             client.DownloadProgressChanged += delegate(object sender, DownloadProgressChangedEventArgs e) { progress.Report("下载运行环境 " + e.ProgressPercentage + "%"); };
             await client.DownloadFileTaskAsync(new Uri(DownloadUrl), partial);
           }

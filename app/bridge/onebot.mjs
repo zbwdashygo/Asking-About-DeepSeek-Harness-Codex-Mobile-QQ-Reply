@@ -8,7 +8,7 @@ export class IsolatedQQ {
     this.config = config ? validateConfig(config) : loadConfig();
     this.Socket = Socket;
     const c = this.config;
-    this.questions = new Questions(c); this.calls = new Map(); this.waiters = new Map(); this.completions = new Map(); this.ready = false;
+    this.questions = new Questions(c); this.calls = new Map(); this.waiters = new Map(); this.completions = new Map(); this.listeners = new Set(); this.ready = false;
   }
   async connect() {
     if (this.ready) return;
@@ -34,6 +34,7 @@ export class IsolatedQQ {
           if (call) { clearTimeout(call.timer); this.calls.delete(m.echo); m.retcode === 0 && m.status === 'ok' ? call.resolve(m.data) : call.reject(Error('QQ 接口返回错误')); return; }
           if (m.post_type === 'meta_event' && String(m.self_id) === c.botId && Number.isFinite(m.time)) this.questions.sourceOffsetMs = m.time * 1000 - Date.now();
           if (!this.ready) return;
+          for (const listener of this.listeners) { try { void Promise.resolve(listener(m)).catch(() => {}); } catch {} }
           // The numbered question still must match; choices are suggestions on QQ.
           const text = Array.isArray(m.message) ? m.message.filter(s => s.type === 'text').map(s => s.data?.text ?? '').join('').trim() : '';
           const parsed = /^([A-F0-9]{10})\s+([\s\S]+)$/i.exec(text);
@@ -73,6 +74,11 @@ export class IsolatedQQ {
   }
   notify(text) {
     void this.call('send_private_msg', { user_id: Number(this.config.contactId), message: [{ type: 'text', data: { text } }] }).catch(() => {});
+  }
+  onMessage(listener) { this.listeners.add(listener); return () => this.listeners.delete(listener); }
+  async sendText(text) {
+    await this.connect();
+    return this.call('send_private_msg', { user_id: Number(this.config.contactId), message: [{ type: 'text', data: { text } }] });
   }
   async sendCompletion(input) {
     const { taskId, summary } = validateCompletion(input);

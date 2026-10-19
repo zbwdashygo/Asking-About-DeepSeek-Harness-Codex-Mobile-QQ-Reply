@@ -3,9 +3,10 @@ import { IsolatedQQ } from '../bridge/onebot.mjs';
 import { normalizeMobileAnswer } from '../bridge/coordinator.mjs';
 import { validateQuestion } from '../bridge/coordinator.mjs';
 import { validateCompletion } from '../bridge/completion.mjs';
+import { dshMobileWake } from '../bridge/dsh-wake.mjs';
 
 export const name = 'stella-relay-dsh';
-export const inject = ['tools', 'userQuestions'];
+export const inject = ['tools', 'userQuestions', 'agents', 'sessionPersistence', 'workspaceRegistry', 'sessionTitle', 'sessionController'];
 
 // The relay tool calls the host's native question service with its live caller.
 // Existing question/permission handlers are never intercepted or replaced.
@@ -47,6 +48,8 @@ export async function apply(ctx, config = {}) {
   const relayConfig = JSON.parse(readFileSync(location, 'utf8'));
   const mobile = new IsolatedQQ({ config: relayConfig });
   ctx.on('dispose', () => mobile.close());
+  const configure = dshMobileWake(ctx, mobile, location);
+  ctx.tools.register({ name: 'stella_configure_mobile_wake', description: '按用户要求启用或关闭手机 QQ 主动唤醒 DSH 对话。发送“列表 dsh”查看编号，再发送“唤醒 dsh 编号 任务内容”；保留原生审批，忙碌对话不自动打断。DSH 需保持运行。', parameters: { type: 'object', properties: { enabled: { type: 'boolean' } }, required: ['enabled'], additionalProperties: false }, timeoutMs: 30000, output: { schema: { type: 'object', properties: { enabled: { type: 'boolean' }, running: { type: 'boolean' }, requiresDshOpen: { type: 'boolean' } }, required: ['enabled', 'running', 'requiresDshOpen'], additionalProperties: false }, render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }] }, execute(args) { if (!args || typeof args.enabled !== 'boolean' || Object.keys(args).some(k => k !== 'enabled')) throw Error('仅接受 enabled 开关'); return configure(args.enabled); } });
   registerTools(ctx, mobile);
 }
 

@@ -14,6 +14,10 @@ namespace StellaRelay {
         Assert(first.token != second.token, "separate tokens"); Assert(first.onebotPort != first.webPort, "separate ports");
         Assert(Backend.Read(Backend.ConfigFor(first)).contactId == first.contactId, "config round trip");
         Assert(Backend.DirectoryFor(first) != Backend.DirectoryFor(second), "separate data roots");
+        Backend.SetMobileWake(first, true);
+        Assert(File.ReadAllText(Backend.ConfigFor(first) + ".mobile-codex.json").Contains("true") && File.ReadAllText(Backend.ConfigFor(first) + ".mobile-dsh.json").Contains("true"), "both mobile wake switches enabled");
+        Backend.SetMobileWake(first, false);
+        Assert(File.ReadAllText(Backend.ConfigFor(first) + ".mobile-codex.json").Contains("false"), "mobile wake can be disabled");
         Assert(Backend.Save("1111111111", "5555555555").token == first.token, "stable token when editing contact");
         Directory.CreateDirectory(Backend.RuntimeFor(first)); File.WriteAllText(Path.Combine(Backend.RuntimeFor(first), "node.exe"), "test stub"); Backend.WriteRuntimeConfig(first);
         string onebot = File.ReadAllText(Path.Combine(Backend.RuntimeFor(first), "napcat", "config", "onebot11_" + first.botId + ".json"));
