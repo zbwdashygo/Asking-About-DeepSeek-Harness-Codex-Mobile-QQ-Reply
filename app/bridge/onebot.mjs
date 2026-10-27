@@ -1,11 +1,13 @@
 import { randomUUID } from 'node:crypto';
-import { loadConfig, validateConfig } from './config.mjs';
+import { loadConfig, validateConfig, configPath } from './config.mjs';
+import { allocateQuestionNumber } from './question-numbers.mjs';
 import { Questions } from './questions.mjs';
 import { normalizeMobileAnswer } from './coordinator.mjs';
 import { validateCompletion } from './completion.mjs';
 export class IsolatedQQ {
-  constructor({ config, Socket = WebSocket } = {}) {
+  constructor({ config, configFile, Socket = WebSocket } = {}) {
     this.config = config ? validateConfig(config) : loadConfig();
+    this.configFile = configFile ?? (config ? undefined : configPath());
     this.Socket = Socket;
     const c = this.config;
     this.questions = new Questions(c); this.calls = new Map(); this.waiters = new Map(); this.completions = new Map(); this.listeners = new Set(); this.ready = false;
@@ -37,13 +39,13 @@ export class IsolatedQQ {
           for (const listener of this.listeners) { try { void Promise.resolve(listener(m)).catch(() => {}); } catch {} }
           // The numbered question still must match; choices are suggestions on QQ.
           const text = Array.isArray(m.message) ? m.message.filter(s => s.type === 'text').map(s => s.data?.text ?? '').join('').trim() : '';
-          const parsed = /^([A-F0-9]{10})\s+([\s\S]+)$/i.exec(text);
+          const parsed = /^([1-9][0-9]{0,8}|[A-F0-9]{10})\s+([\s\S]+)$/i.exec(text);
           const waiter = parsed && this.waiters.get(parsed[1].toUpperCase());
           if (!waiter) return;
           if (normalizeMobileAnswer(parsed[2], waiter.choices) === null) {
             if (m.post_type === 'message' && m.message_type === 'private' && m.sub_type === 'friend' && String(m.self_id) === c.botId && String(m.user_id) === c.contactId && !waiter.warned) {
               waiter.warned = true;
-              this.notify(`【stella ${parsed[1].toUpperCase()}】回答未采用：请选择 1–${waiter.choices?.length ?? 6}，或用文字回答。请保留本题编号。`);
+              this.notify(`【stella ${parsed[1].toUpperCase()}】这个数字没对上，选 1–${waiter.choices?.length ?? 6}，或直接说你的想法吧。记得带上问题编号。`);
             }
             return;
           }
@@ -51,7 +53,7 @@ export class IsolatedQQ {
             const item = this.questions.get(parsed[1].toUpperCase());
             clearTimeout(waiter.timer); this.waiters.delete(item.id); waiter.resolve(item.answer);
             // Do not delay delivery to Codex while waiting for QQ to send the receipt.
-            this.notify(`【stella ${item.id}】回复已接收，正在返回 Codex；无需再在电脑提交。若电脑仍停留在表单，请在本聊天报告。`);
+            this.notify(`【stella ${item.id}】收到啦，已转给电脑，不用再答一次。`);
           }
         } catch { /* Ignore malformed frames; do not log message text or tokens. */ }
       });
@@ -91,7 +93,7 @@ export class IsolatedQQ {
       await this.connect();
       const response = await this.call('send_private_msg', {
         user_id: Number(this.config.contactId),
-        message: [{ type: 'text', data: { text: `【stella · 工作完成】\n任务：${taskId}\n${summary}\n\n此消息为完成通知，无需回复。` } }]
+        message: [{ type: 'text', data: { text: `【stella · 工作完成】\n忙完啦。${summary}` } }]
       });
       if (response?.message_id == null) throw Error('QQ 未返回消息编号，送达状态未知；不会自动重发');
       return { sent: true, taskId, messageId: String(response.message_id) };
@@ -102,8 +104,9 @@ export class IsolatedQQ {
   }
   async open(question) {
     await this.connect(); this.questions.prune();
-    const text = question.question + (question.choices ? '\n' + question.choices.map((v, i) => `${i + 1}. ${v}`).join('\n') + '\n可回复选项数字，也可用自己的话回答。' : '') + '\n\n电脑上的 Codex 原生表单也可回答，系统只采用一次答复。';
-    const { item } = this.questions.create({ text, context: question.context, timeoutSeconds: 480 });
+    const text = question.question + (question.choices ? '\n' + question.choices.map((v, i) => `${i + 1}. ${v}`).join('\n') + '\n选数字或直接说都可以。' : '') + '\n电脑也能回答，两边先答先用。';
+    const id = this.configFile ? await allocateQuestionNumber(this.configFile + '.question-numbers.json') : undefined;
+    const { item } = this.questions.create({ text, context: question.context, timeoutSeconds: 480, ...(id ? { id } : {}) });
     let resolve, reject;
     const promise = new Promise((a, b) => { resolve = a; reject = b; });
     promise.catch(() => {}); // Early cancellation may happen before the coordinator takes ownership.

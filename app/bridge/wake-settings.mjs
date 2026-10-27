@@ -13,8 +13,10 @@ export function bindDesktop(configFile, { enabled, callerThreadId } = {}) {
   if (enabled !== undefined) value.enabled = enabled;
   if (callerThreadId) value.callerThreadId = callerThreadId;
   if (value.enabled) {
-    if (!process.env.CODEX_APP_TOOLS_PIPE_PATH || !value.callerThreadId) throw Error('请在 Codex 桌面对话中启用手机唤醒');
-    value.pipe = process.env.CODEX_APP_TOOLS_PIPE_PATH; value.serverPath = findDesktopTools();
+    if (!value.callerThreadId || (!process.env.CODEX_APP_TOOLS_PIPE_PATH && !value.pipe)) throw Error('请在 Codex 桌面对话中启用手机唤醒');
+    // Some Codex MCP processes do not receive the desktop pipe environment.
+    // Preserve an existing authorized binding; the backend validates recovery.
+    value.pipe = process.env.CODEX_APP_TOOLS_PIPE_PATH || value.pipe; value.serverPath = findDesktopTools();
   }
   saveSettings(file, value);
   return { enabled: value.enabled, requiresBackground: true, requiresDesktopOpen: true };

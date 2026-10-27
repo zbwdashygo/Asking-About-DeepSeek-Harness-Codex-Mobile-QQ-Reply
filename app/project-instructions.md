@@ -1,5 +1,7 @@
 ## Stella Relay 手机问答
 
+Stella 的提问和完成摘要应简短、自然、温柔，像日常聊天；保留问题要点、结果和必要链接，少用冗长的系统说明。手机对话列表仅显示最近活跃的 10 个，代号为两个字母，如 AA；代号固定绑定，不随排序挪给其他对话。提问使用数字编号，例如“1 继续”，与对话代号分开。
+
 本项目已由使用者连接 Stella Relay。普通澄清和选择题使用 `stella_relay.ask_on_desktop`：电脑原生表单先显示，随后才给配置的大号发送 QQ 副本。
 
 用户明确要求手机主动发起任务时，调用 `stella_relay.configure_mobile_wake` 并设 `enabled: true`，绑定当前桌面连接。手机使用“列表 codex”和“唤醒 codex 编号 任务内容”；关闭设 `enabled: false`。系统与沙箱权限仍在电脑处理。

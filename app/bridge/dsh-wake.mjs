@@ -7,8 +7,10 @@ export class DshWakeBackend {
   async list() {
     const ctx = this.ctx, archived = new Set(ctx.workspaceRegistry.archivedSessionIds ?? []);
     const snapshots = await ctx.sessionPersistence.list();
+    const summaries = await ctx.sessionController.list({}, new AbortController().signal);
+    const activity = new Map(summaries.items.map(item => [item.sessionId, item.updatedAt]));
     const roots = new Map(ctx.agents.roots().map(agent => [agent.id, agent]));
-    const headers = snapshots.map(s => s.header).filter(h => h?.id && h.origin !== 'subagent' && !h.delegationDepth && !archived.has(h.id)).sort((a, b) => b.createdAt - a.createdAt).slice(0, 50);
+    const headers = snapshots.map(s => s.header).filter(h => h?.id && h.origin !== 'subagent' && !h.delegationDepth && !archived.has(h.id)).sort((a, b) => (activity.get(b.id) ?? b.createdAt) - (activity.get(a.id) ?? a.createdAt)).slice(0, 50);
     const rows = [];
     for (const header of headers) {
       const live = roots.get(header.id);
@@ -23,7 +25,7 @@ export class DshWakeBackend {
           if (title) this.titles.set(header.id, title);
         } finally { await handle?.close(); }
       }
-      rows.push({ id: header.id, title: title || `${header.cwd ?? 'DSH'} · ${header.id}`, status: live?.status ?? 'notLoaded' });
+      rows.push({ id: header.id, title: title || `${header.cwd ?? 'DSH'} · ${header.id}`, status: live?.status ?? 'notLoaded', updatedAt: activity.get(header.id) ?? header.createdAt });
     }
     return rows;
   }

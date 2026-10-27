@@ -9,31 +9,45 @@ using System.Windows.Forms;
 [assembly: System.Reflection.AssemblyTitle("Stella Relay")]
 [assembly: System.Reflection.AssemblyDescription("Independent QQ question relay for Codex and DeepSeek Harness")]
 [assembly: System.Reflection.AssemblyVersion("0.4.0.0")]
+[assembly: System.Reflection.AssemblyFileVersion("0.4.0.2")]
+[assembly: System.Reflection.AssemblyInformationalVersion("0.4.0-beta.2")]
 
 namespace StellaRelay {
   internal sealed class LoginWindow : Form {
-    private PictureBox picture = new PictureBox(); private Label note = new Label(); private Timer timer = new Timer(); private Profile profile;
+    private PictureBox picture = new PictureBox(); private Label note = new Label(), prompt = new Label(), logged = new Label(); private Timer timer = new Timer(); private Profile profile; private bool checking;
     public LoginWindow(Profile p) {
       profile = p; Text = "小号扫码登录 · " + p.botId; ClientSize = new Size(420, 420); StartPosition = FormStartPosition.CenterParent;
       Font = new Font("Microsoft YaHei UI", 10); BackColor = Color.White; FormBorderStyle = FormBorderStyle.FixedDialog; MaximizeBox = false;
-      Controls.Add(new Label { Text = "请使用小号 " + p.botId + " 扫码并在手机确认", Bounds = new Rectangle(15, 15, 390, 40), TextAlign = ContentAlignment.MiddleCenter });
+      prompt.Text = "正在检查小号登录状态…"; prompt.Bounds = new Rectangle(15, 15, 390, 40); prompt.TextAlign = ContentAlignment.MiddleCenter; Controls.Add(prompt);
       picture.Bounds = new Rectangle(70, 65, 280, 280); picture.SizeMode = PictureBoxSizeMode.Zoom; Controls.Add(picture);
+      logged.Bounds = picture.Bounds; logged.TextAlign = ContentAlignment.MiddleCenter; logged.Font = new Font(Font.FontFamily, 17, FontStyle.Bold); logged.ForeColor = Color.FromArgb(16, 125, 119); logged.Visible = false; Controls.Add(logged);
       note.Bounds = new Rectangle(20, 355, 380, 50); note.TextAlign = ContentAlignment.MiddleCenter; Controls.Add(note);
       timer.Interval = 1500; timer.Tick += delegate { RefreshQR(); }; Shown += delegate { timer.Start(); RefreshQR(); };
       FormClosed += delegate { timer.Dispose(); if (picture.Image != null) picture.Image.Dispose(); };
     }
-    private void RefreshQR() {
+    private void ClearQR() { Image old = picture.Image; picture.Image = null; if (old != null) old.Dispose(); }
+    private async void RefreshQR() {
+      if (checking || IsDisposed) return; checking = true;
       string path = Path.Combine(Backend.RuntimeFor(profile), "napcat", "cache", "qrcode.png");
       try {
+        Status status = await Backend.Check(profile); if (IsDisposed) return;
+        if (status.connected) {
+          ClearQR(); picture.Visible = false; logged.Visible = true; logged.Text = "✓ 小号已登录\n\n无需再次扫码";
+          prompt.Text = "专用小号 " + profile.botId + " 已连接";
+          note.Text = status.contactReady ? "大号好友已核验，可以关闭此窗口。" : "请先在手机将接收消息的大号添加为好友。"; return;
+        }
+        logged.Visible = false; picture.Visible = true;
+        if (!status.running) { ClearQR(); prompt.Text = "后台尚未启动"; note.Text = "请关闭此窗口，先点击主窗口的启动后台。"; return; }
+        prompt.Text = "请使用小号 " + profile.botId + " 扫码并在手机确认";
         if (!File.Exists(path) || DateTime.UtcNow - File.GetLastWriteTimeUtc(path) > TimeSpan.FromSeconds(125)) {
-          if (picture.Image != null) { picture.Image.Dispose(); picture.Image = null; }
-          note.Text = "等待后台生成有效二维码…\n如有登录限制，请在手机 QQ 按提示处理。"; return;
+          ClearQR(); note.Text = Backend.LoginHint(profile); return;
         }
         using (FileStream file = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)) using (Image image = Image.FromStream(file)) {
           Image old = picture.Image; picture.Image = new Bitmap(image); if (old != null) old.Dispose();
         }
         note.Text = "二维码会自动刷新；请核对登录的是小号。";
-      } catch { note.Text = "正在刷新二维码…"; }
+      } catch { if (!IsDisposed) note.Text = "暂时无法读取登录状态，请确认后台正在运行。"; }
+      finally { checking = false; }
     }
   }
   internal sealed class MainWindow : Form {

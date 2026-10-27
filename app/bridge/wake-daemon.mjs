@@ -1,4 +1,4 @@
-import { readSettings, settingsFile } from './wake-settings.mjs';
+import { readSettings, saveSettings, settingsFile } from './wake-settings.mjs';
 import { configPath, loadConfig } from './config.mjs';
 import { IsolatedQQ } from './onebot.mjs';
 import { DesktopToolsClient } from './native-app.mjs';
@@ -15,8 +15,13 @@ async function reconcile() {
     service?.stop(); mobile?.close(); service = mobile = undefined; fingerprint = null;
     if (!next) return;
     const state = new WakeState(configFile + '.codex-wake-ledger.json'); state.data.enabled = true;
-    const backend = new DesktopToolsClient({ callerThreadId: settings.callerThreadId, serverPath: settings.serverPath, env: { ...process.env, CODEX_APP_TOOLS_PIPE_PATH: settings.pipe, CODEX_APP_TOOLS_CALLER_HOST_ID: 'local' } });
-    mobile = new IsolatedQQ({ config }); service = new MobileWake({ platform: 'codex', mobile, backend, state });
+    const backend = new DesktopToolsClient({ callerThreadId: settings.callerThreadId, serverPath: settings.serverPath, env: { ...process.env, CODEX_APP_TOOLS_PIPE_PATH: settings.pipe, CODEX_APP_TOOLS_CALLER_HOST_ID: 'local' }, onRecovered({ previousPipe, pipe, serverPath }) {
+      const file = settingsFile(configFile, 'codex'), current = readSettings(file);
+      if (!current.enabled || current.callerThreadId !== settings.callerThreadId || current.pipe !== previousPipe) throw Error('手机唤醒配置已改变，请重新发一条列表指令');
+      const updated = { ...current, pipe, serverPath }; saveSettings(file, updated);
+      fingerprint = JSON.stringify(updated);
+    } });
+    mobile = new IsolatedQQ({ config, configFile }); service = new MobileWake({ platform: 'codex', mobile, backend, state });
     await service.start(); fingerprint = next;
   } catch { service?.stop(); mobile?.close(); service = mobile = undefined; fingerprint = null; }
   finally { busy = false; }

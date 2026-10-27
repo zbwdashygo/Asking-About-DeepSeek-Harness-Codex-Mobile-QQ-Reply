@@ -70,6 +70,24 @@ namespace StellaRelay {
       File.WriteAllText(Path.Combine(dir, "webui.json"), Json.Serialize(new { host = "127.0.0.1", port = p.webPort, token = p.token, loginRate = 3 }), Utf8);
     }
     private static void Release(object obj) { if (obj != null && Marshal.IsComObject(obj)) Marshal.FinalReleaseComObject(obj); }
+    internal static bool IsDedicatedRuntime(Profile p, string executable) {
+      Validate(p);
+      return !String.IsNullOrEmpty(executable) && String.Equals(Path.GetFullPath(executable), Path.GetFullPath(Path.Combine(RuntimeFor(p), "node.exe")), StringComparison.OrdinalIgnoreCase);
+    }
+    private static void StopDedicatedRuntime(Profile p) {
+      Validate(p);
+      if (!File.Exists(Path.Combine(RuntimeFor(p), "stella-isolated.txt"))) return;
+      // Scheduled-task Stop can leave detached NapCat children alive. Only this
+      // profile's own Node executable may be terminated, never installed QQ.
+      for (int round = 0; round < 2; round++) {
+        foreach (Process process in Process.GetProcessesByName("node")) using (process) {
+          try {
+            if (IsDedicatedRuntime(p, process.MainModule.FileName)) { process.Kill(); process.WaitForExit(1500); }
+          } catch (InvalidOperationException) { /* Already exited. */ }
+          catch (System.ComponentModel.Win32Exception e) { if (e.NativeErrorCode != 5) throw; }
+        }
+      }
+    }
     public static bool TaskState(Profile p, string operation) {
       Validate(p); object serviceObject = null, folderObject = null, taskObject = null;
       try {
@@ -93,9 +111,9 @@ namespace StellaRelay {
         dynamic task = taskObject; dynamic actionCheck = task.Definition.Actions.Item(1);
         if ((string)task.Definition.RegistrationInfo.Description != description || !String.Equals((string)actionCheck.Path, exe, StringComparison.OrdinalIgnoreCase) || (string)actionCheck.Arguments != arguments) throw new InvalidOperationException("发现不属于当前安装目录的同名后台任务，未操作。请从原安装目录停止后台。");
         int state = (int)task.State;
-        if (operation == "start" && state != 4 && state != 2) task.Run(null);
-        if (operation == "stop" && (state == 4 || state == 2)) task.Stop(0);
-        if (operation == "remove") { if (state == 4 || state == 2) task.Stop(0); folder.DeleteTask(TaskName(p), 0); return false; }
+        if (operation == "start" && state != 4 && state != 2) { StopDedicatedRuntime(p); task.Run(null); }
+        if (operation == "stop") { if (state == 4 || state == 2) task.Stop(0); StopDedicatedRuntime(p); }
+        if (operation == "remove") { if (state == 4 || state == 2) task.Stop(0); StopDedicatedRuntime(p); folder.DeleteTask(TaskName(p), 0); return false; }
         return (int)task.State == 4 || (int)task.State == 2;
       } finally { Release(taskObject); Release(folderObject); Release(serviceObject); }
     }
@@ -160,6 +178,23 @@ namespace StellaRelay {
         }
       } catch { /* Do not expose a credential-bearing endpoint. */ }
       return result;
+    }
+    public static string LoginHint(Profile p) {
+      string file = Path.Combine(DirectoryFor(p), "runtime.log");
+      if (!File.Exists(file)) return "等待后台生成有效二维码…";
+      try {
+        using (FileStream stream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)) {
+          stream.Seek(Math.Max(0, stream.Length - 32768), SeekOrigin.Begin);
+          using (StreamReader reader = new StreamReader(stream, Encoding.UTF8)) {
+            string tail = reader.ReadToEnd(); int start = tail.LastIndexOf("NapCat Shell App Loading...", StringComparison.Ordinal);
+            if (start >= 0) tail = tail.Substring(start);
+            // Only fixed status text is returned; log tokens and URLs stay private.
+            if (tail.Contains("无法重复登录")) return "检测到重复登录。请关闭此窗口，点击停止后台后重新启动。";
+            if (tail.Contains("正在快速登录")) return "正在恢复小号已有登录；成功后无需再次扫码。";
+          }
+        }
+      } catch (IOException) { }
+      return "等待后台生成有效二维码…\n如有登录限制，请在手机 QQ 按提示处理。";
     }
     private static string MergeBlock(string original, string begin, string end, string block) {
       int first = original.IndexOf(begin, StringComparison.Ordinal), last = original.IndexOf(end, StringComparison.Ordinal);

@@ -46,7 +46,7 @@ export async function relayRequest(request, next, mobile, { mirrorDelayMs = 1000
 export async function apply(ctx, config = {}) {
   const location = config.configFile ?? JSON.parse(readFileSync(new URL('./relay-location.json', import.meta.url), 'utf8')).configFile;
   const relayConfig = JSON.parse(readFileSync(location, 'utf8'));
-  const mobile = new IsolatedQQ({ config: relayConfig });
+  const mobile = new IsolatedQQ({ config: relayConfig, configFile: location });
   ctx.on('dispose', () => mobile.close());
   const configure = dshMobileWake(ctx, mobile, location);
   ctx.tools.register({ name: 'stella_configure_mobile_wake', description: '按用户要求启用或关闭手机 QQ 主动唤醒 DSH 对话。发送“列表 dsh”查看编号，再发送“唤醒 dsh 编号 任务内容”；保留原生审批，忙碌对话不自动打断。DSH 需保持运行。', parameters: { type: 'object', properties: { enabled: { type: 'boolean' } }, required: ['enabled'], additionalProperties: false }, timeoutMs: 30000, output: { schema: { type: 'object', properties: { enabled: { type: 'boolean' }, running: { type: 'boolean' }, requiresDshOpen: { type: 'boolean' } }, required: ['enabled', 'running', 'requiresDshOpen'], additionalProperties: false }, render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }] }, execute(args) { if (!args || typeof args.enabled !== 'boolean' || Object.keys(args).some(k => k !== 'enabled')) throw Error('仅接受 enabled 开关'); return configure(args.enabled); } });

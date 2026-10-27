@@ -14,6 +14,12 @@ namespace StellaRelay {
         Assert(first.token != second.token, "separate tokens"); Assert(first.onebotPort != first.webPort, "separate ports");
         Assert(Backend.Read(Backend.ConfigFor(first)).contactId == first.contactId, "config round trip");
         Assert(Backend.DirectoryFor(first) != Backend.DirectoryFor(second), "separate data roots");
+        Assert(Backend.IsDedicatedRuntime(first, Path.Combine(Backend.RuntimeFor(first), "node.exe")), "cleanup accepts only own runtime executable");
+        Assert(!Backend.IsDedicatedRuntime(first, Path.Combine(Backend.RuntimeFor(second), "node.exe")) && !Backend.IsDedicatedRuntime(first, "C:\\Program Files\\Tencent\\QQNT\\QQ.exe"), "cleanup excludes other profiles and personal QQ");
+        File.WriteAllText(Path.Combine(Backend.DirectoryFor(first), "runtime.log"), "NapCat Shell App Loading...\n当前账号已登录,无法重复登录\nprivate token not for UI");
+        Assert(Backend.LoginHint(first).Contains("重复登录") && !Backend.LoginHint(first).Contains("private token"), "login error hint does not reveal logs");
+        File.AppendAllText(Path.Combine(Backend.DirectoryFor(first), "runtime.log"), "\nNapCat Shell App Loading...\n正在快速登录");
+        Assert(Backend.LoginHint(first).Contains("已有登录"), "latest startup supersedes older login error");
         Backend.SetMobileWake(first, true);
         Assert(File.ReadAllText(Backend.ConfigFor(first) + ".mobile-codex.json").Contains("true") && File.ReadAllText(Backend.ConfigFor(first) + ".mobile-dsh.json").Contains("true"), "both mobile wake switches enabled");
         Backend.SetMobileWake(first, false);

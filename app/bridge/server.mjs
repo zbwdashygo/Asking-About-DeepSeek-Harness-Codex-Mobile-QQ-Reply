@@ -38,7 +38,7 @@ async function handle(m) {
   try {
     if (m.method === 'initialize') {
       clientCapabilities = m.params?.capabilities ?? {};
-      result = { protocolVersion: m.params?.protocolVersion ?? '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'stella-relay', version: '0.4.0-beta.1' }, instructions: '所有提问先使用 Codex 原生表单。先运行 test_desktop_form 验证客户端；不支持表单时用电脑原有提问工具，不能退化成只靠 QQ。不要用本服务批准沙箱或系统权限请求。' };
+      result = { protocolVersion: m.params?.protocolVersion ?? '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'stella-relay', version: '0.4.0-beta.2' }, instructions: '所有提问先使用 Codex 原生表单。先运行 test_desktop_form 验证客户端；不支持表单时用电脑原有提问工具，不能退化成只靠 QQ。不要用本服务批准沙箱或系统权限请求。' };
     } else if (m.method === 'ping') result = {};
     else if (m.method === 'tools/list') result = { tools };
     else if (m.method === 'tools/call') {

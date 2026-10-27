@@ -69,7 +69,7 @@ test('真实接收分支采用带编号的自由文字，并只确认一次', as
     assert.equal(await handle.promise, '测试成功');
     assert.equal(qq.waiters.size, 0);
     const count = qq.socket.sent.length; qq.socket.frame(event); assert.equal(qq.socket.sent.length, count);
-    assert.ok(qq.socket.sent.some(m => m.params?.message?.[0]?.data.text.includes('回复已接收')));
+    assert.ok(qq.socket.sent.some(m => m.params?.message?.[0]?.data.text.includes('收到啦')));
   } finally { qq.close(); }
 });
 test('错误选项数字有提示且不消费请求，随后可以重新回答', async () => {
@@ -77,7 +77,7 @@ test('错误选项数字有提示且不消费请求，随后可以重新回答',
   try {
     qq.socket.frame(incoming(id, '9'));
     assert.equal(qq.questions.get(id).state, 'pending');
-    assert.ok(qq.socket.sent.some(m => m.params?.message?.[0]?.data.text.includes('回答未采用')));
+    assert.ok(qq.socket.sent.some(m => m.params?.message?.[0]?.data.text.includes('数字没对上')));
     qq.socket.frame(incoming(id, '2')); assert.equal(await handle.promise, '2');
   } finally { qq.close(); }
 });
