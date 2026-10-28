@@ -1,10 +1,13 @@
+import { mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import readline from 'node:readline';
 import { fileURLToPath } from 'node:url';
-function client(capabilities) {
-  const proc = spawn(process.execPath, [fileURLToPath(new URL('../app/bridge/server.mjs', import.meta.url))], { stdio: ['pipe', 'pipe', 'pipe'] });
+function client(capabilities, env = {}) {
+  const proc = spawn(process.execPath, [fileURLToPath(new URL('../app/bridge/server.mjs', import.meta.url))], { stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, ...env } });
   const received = [], waiting = [];
   let diagnostics = '';
   proc.stderr.on('data', d => { diagnostics += String(d); });
@@ -68,4 +71,20 @@ test('客户端取消调用时向原生表单发出相同请求编号的取消�
     const cancel = await c.wait(m => m.method === 'notifications/cancelled'); assert.equal(cancel.params.requestId, form.id);
     assert.equal((await c.wait(m => m.id === 2)).result.isError, true);
   } finally { c.proc.kill(); }
+});
+
+test('MCP 可明确启用手机问答，未通过电脑测试也尝试 QQ，不发送电脑独占表单', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'stella-mcp-policy-')), file = join(dir, 'relay.json');
+  writeFileSync(file, JSON.stringify({ botId: '111111', contactId: '222222', token: 'a'.repeat(64), onebotPort: 24123 }));
+  const c = client({}, { STELLA_RELAY_CONFIG: file });
+  try {
+    await c.wait(m => m.id === 1);
+    c.send({ id: 2, method: 'tools/call', params: { name: 'configure_question_delivery', arguments: { mobileRequired: true } } });
+    assert.equal((await c.wait(m => m.id === 2)).result.isError, undefined);
+    assert.deepEqual(JSON.parse(readFileSync(file + '.question-policy.json', 'utf8')), { mobileRequired: true, document: true });
+    c.send({ id: 3, method: 'tools/call', params: { name: 'ask_on_desktop', arguments: { question: 'test' } } });
+    const response = await c.wait(m => m.id === 3); assert.equal(response.result.isError, true);
+    assert.doesNotMatch(response.result.content[0].text, /test_desktop_form/); assert.match(response.result.content[0].text, /QQ/);
+    assert.equal(c.received.some(m => m.method === 'elicitation/create'), false);
+  } finally { c.proc.kill(); rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); }
 });

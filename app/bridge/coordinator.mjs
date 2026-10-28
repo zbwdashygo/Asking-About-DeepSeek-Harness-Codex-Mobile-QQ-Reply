@@ -58,3 +58,42 @@ export function coordinate({ input, desktop, mobile, mirrorDelayMs = 1000, timeo
     if (signal?.aborted) abort();
   });
 }
+
+// Explicit mobile-required policy: a failed/unverified native form cannot
+// suppress QQ delivery. Desktop answers are accepted only after QQ confirms
+// the question exists, so a computer-only question never completes this mode.
+export function coordinateRequiredMobile({ input, mobile, desktop, signal, timeoutMs = 480000 }) {
+  const question = validateQuestion(input);
+  return new Promise((resolve, reject) => {
+    let done = false, remote, native, desktopAnswer, timer;
+    const finish = (source, answer, error) => {
+      if (done) return; done = true; clearTimeout(timer); signal?.removeEventListener('abort', abort);
+      if (source !== 'qq') remote?.cancel();
+      if (source !== 'desktop') native?.cancel('此问题已在手机完成或取消');
+      error ? reject(error) : resolve({ source, answer });
+    };
+    const abort = () => finish('cancelled', null, Error('本次提问已取消'));
+    if (signal?.aborted) { abort(); return; }
+    signal?.addEventListener('abort', abort, { once: true });
+    if (desktop) try {
+      native = desktop.request(question);
+      native.promise.then(result => {
+        if (done || result?.action !== 'accept') return;
+        const answer = normalizeAnswer(result.content?.answer, question.choices);
+        if (answer === null) return;
+        desktopAnswer = answer;
+        if (remote) finish('desktop', answer);
+      }, () => { /* Native UI failure must not disable the phone. */ });
+    } catch { /* QQ remains available without pretending a native form exists. */ }
+    timer = setTimeout(() => finish('timeout', null, Error('手机问题已超时，请重新提问')), timeoutMs);
+    Promise.resolve().then(() => mobile.open({ ...question, mobileRequired: true })).then(handle => {
+      if (done) { handle.cancel(); return; }
+      remote = handle;
+      handle.promise.then(answer => {
+        const value = normalizeMobileAnswer(answer, question.choices);
+        if (value !== null) finish('qq', value);
+      }, error => finish('qq', null, error));
+      if (desktopAnswer !== undefined) finish('desktop', desktopAnswer);
+    }, error => finish('qq', null, error));
+  });
+}

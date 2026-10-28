@@ -39,7 +39,7 @@ export class DesktopToolsClient {
       createInterface({ input: child.stdout }).on('line', line => {
         try { if (this.child !== child) return; const m = JSON.parse(line), p = this.pending.get(m.id); if (!p) return; clearTimeout(p.timer); this.pending.delete(m.id); m.error ? p.reject(Error(m.error.message)) : p.resolve(m.result); } catch {}
       });
-      await this.request('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'stella-mobile-wake', version: '0.4.0-beta.3' } });
+      await this.request('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'stella-mobile-wake', version: '0.4.0-beta.4' } });
       this.child.stdin.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }) + '\n');
       const catalog = await this.request('tools/list', {});
       this.tools = new Set(catalog.tools.map(t => t.name));

@@ -4,6 +4,8 @@ import { allocateQuestionNumber } from './question-numbers.mjs';
 import { Questions } from './questions.mjs';
 import { normalizeMobileAnswer } from './coordinator.mjs';
 import { validateCompletion } from './completion.mjs';
+import { FileStore } from './files.mjs';
+import { questionPolicy, writeQuestionDocument } from './question-document.mjs';
 export class IsolatedQQ {
   constructor({ config, configFile, Socket = WebSocket } = {}) {
     this.config = config ? validateConfig(config) : loadConfig();
@@ -117,7 +119,10 @@ export class IsolatedQQ {
   }
   async open(question) {
     await this.connect(); this.questions.prune();
-    const text = question.question + (question.choices ? '\n' + question.choices.map((v, i) => `${i + 1}. ${v}`).join('\n') + '\n选数字或直接说都可以。' : '') + '\n电脑也能回答，两边先答先用。';
+    const policy = questionPolicy(this.configFile);
+    const mobileRequired = question.mobileRequired ?? policy.mobileRequired;
+    const document = question.document ?? policy.document;
+    const text = question.question + (question.choices ? '\n' + question.choices.map((v, i) => `${i + 1}. ${v}`).join('\n') + '\n选数字或直接说都可以。' : '') + (mobileRequired ? '\n直接在手机 QQ 按编号回复就好。' : '\n电脑也能回答，两边先答先用。');
     const id = this.configFile ? await allocateQuestionNumber(this.configFile + '.question-numbers.json') : undefined;
     const { item } = this.questions.create({ text, context: question.context, timeoutSeconds: 480, ...(id ? { id } : {}) });
     let resolve, reject;
@@ -130,7 +135,19 @@ export class IsolatedQQ {
       if (!this.ready || item.state !== 'sending') throw Error('QQ 发送期间连接断开');
       item.sentAt = Date.now(); item.state = 'pending';
     } catch (e) { clearTimeout(timer); this.waiters.delete(item.id); item.state = 'send_failed'; reject(e); throw e; }
-    return { promise, cancel: () => { clearTimeout(timer); this.waiters.delete(item.id); if (['pending', 'sending'].includes(item.state)) item.state = 'cancelled'; reject(Error('此问题已在电脑完成或取消')); } };
+    // Do not hold a mobile answer behind a slow document-upload receipt.
+    // The complete question and reply number are already in the QQ text.
+    let documentReceipt;
+    if (document) {
+      documentReceipt = Promise.resolve().then(() => {
+        const attachment = writeQuestionDocument(this.configFile, item);
+        return new FileStore(this.configFile).send(this, { transferId: attachment.transferId, filePath: attachment.filePath }, attachment.root);
+      }).catch(error => {
+        this.notify('问题文档没发成功，直接按编号回答刚才那条消息也可以。');
+        return { sent: false, error: String(error.message).slice(0,160) };
+      });
+    }
+    return { id: item.id, documentReceipt, promise, cancel: () => { clearTimeout(timer); this.waiters.delete(item.id); if (['pending', 'sending'].includes(item.state)) item.state = 'cancelled'; reject(Error('此问题已在电脑完成或取消')); } };
   }
   close() { this.socket?.close(); }
 }

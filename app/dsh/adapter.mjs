@@ -1,10 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { IsolatedQQ } from '../bridge/onebot.mjs';
 import { normalizeMobileAnswer } from '../bridge/coordinator.mjs';
-import { validateQuestion } from '../bridge/coordinator.mjs';
+import { coordinateRequiredMobile, validateQuestion } from '../bridge/coordinator.mjs';
 import { validateCompletion } from '../bridge/completion.mjs';
 import { dshMobileWake } from '../bridge/dsh-wake.mjs';
 import { FileStore, fileSchema } from '../bridge/files.mjs';
+import { questionPolicy } from '../bridge/question-document.mjs';
 
 export const name = 'stella-relay-dsh';
 export const inject = ['tools', 'userQuestions', 'agents', 'sessionPersistence', 'workspaceRegistry', 'sessionTitle', 'sessionController'];
@@ -80,7 +81,7 @@ export function registerTools(ctx, mobile, defineTool = relayToolDefinition) {
   let verified = false;
   for (const test of [true, false]) ctx.tools.register(defineTool({
     name: test ? 'stella_test_desktop_form' : 'stella_ask_on_desktop',
-    description: test ? '验证 DSH 原生电脑提问卡片，请先在电脑提交一次。' : '普通澄清与方案选择：先显示 DSH 原生电脑卡片，一秒后发 QQ 副本。手机按编号回复自由文字或选项数字。不能代替系统权限审批。',
+    description: test ? '验证 DSH 原生电脑提问卡片，请先在电脑提交一次。' : '普通澄清与方案选择：手机必达模式直接发送 QQ 和 TXT，无需先通过电脑测试；其他模式先显示 DSH 卡片再发 QQ 副本。手机按编号回复自由文字或选项数字。不能代替系统权限审批。',
     parameters: {
       question: { type: 'string', required: true, description: '需要用户回答的问题' },
       choices: { type: 'array', items: { type: 'string' }, description: '可选的 2–6 个选项' },
@@ -89,11 +90,25 @@ export function registerTools(ctx, mobile, defineTool = relayToolDefinition) {
     timeoutMs: 600000,
     output: { schema: { type: 'object', additionalProperties: true, properties: {} }, render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }] },
     async execute(args, exec) {
-      if (!test && !verified) throw Error('请先调用 stella_test_desktop_form，并在电脑真实提交一次');
+      const policy = test ? { mobileRequired: false } : questionPolicy(mobile.configFile);
+      if (!test && !policy.mobileRequired && !verified) throw Error('请先调用 stella_test_desktop_form，并在电脑真实提交一次');
       if (!args || typeof args !== 'object' || Array.isArray(args) || Object.keys(args).some(k => !['question', 'choices', 'context'].includes(k))) throw Error('无效提问参数');
       const input = validateQuestion(args);
       const request = { agent: exec.agent, signal: exec.signal, wait: { callId: exec.callId }, questions: [{ id: 'answer', question: input.question, ...(input.context ? { detail: input.context } : {}), ...(input.choices ? { options: input.choices.map(label => ({ label })) } : {}) }] };
-      const result = test ? await ctx.userQuestions.ask(request) : await relayRequest(request, native => ctx.userQuestions.ask(native), mobile);
+      let result;
+      if (!test && policy.mobileRequired) {
+        const desktop = verified ? { request() {
+          const local = new AbortController();
+          const native = { ...request, signal: request.signal ? AbortSignal.any([request.signal, local.signal]) : local.signal };
+          const promise = ctx.userQuestions.ask(native).then(value => {
+            const answer = value?.answers?.find(a => a.id === 'answer');
+            return answer && (answer.custom?.trim() || answer.selected?.length) ? { action: 'accept', content: { answer: answer.custom?.trim() || answer.selected[0] } } : { action: 'cancel' };
+          });
+          return { promise, cancel() { local.abort(); } };
+        } } : null;
+        const answer = await coordinateRequiredMobile({ input, desktop, mobile, signal: exec.signal });
+        result = { answers: [{ id: 'answer', selected: input.choices?.includes(answer.answer) ? [answer.answer] : [], ...(input.choices?.includes(answer.answer) ? {} : { custom: answer.answer }) }] };
+      } else result = test ? await ctx.userQuestions.ask(request) : await relayRequest(request, native => ctx.userQuestions.ask(native), mobile);
       // A skipped or empty native card is not proof that the user answered it.
       if (test) verified = Boolean(result?.answers?.some(answer => answer.id === 'answer' && (answer.selected?.length || (typeof answer.custom === 'string' && answer.custom.trim()))));
       return result;

@@ -136,6 +136,12 @@ namespace StellaRelay {
         child.Start(); child.BeginOutputReadLine(); child.BeginErrorReadLine(); child.WaitForExit(); return child.ExitCode;
       }
     }
+    public static void SetQuestionDelivery(Profile p, bool mobileRequired) {
+      Validate(p); Directory.CreateDirectory(DirectoryFor(p));
+      string file = ConfigFor(p) + ".question-policy.json", temporary = file + "." + Guid.NewGuid().ToString("N") + ".tmp";
+      File.WriteAllText(temporary, Json.Serialize(new { mobileRequired = mobileRequired, document = mobileRequired }), Utf8);
+      if (File.Exists(file)) File.Replace(temporary, file, null); else File.Move(temporary, file);
+    }
     public static void SetMobileWake(Profile p, bool enabled) {
       Validate(p);
       foreach (string platform in new[] { "codex", "dsh" }) {

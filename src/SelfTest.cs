@@ -20,6 +20,10 @@ namespace StellaRelay {
         Assert(Backend.LoginHint(first).Contains("重复登录") && !Backend.LoginHint(first).Contains("private token"), "login error hint does not reveal logs");
         File.AppendAllText(Path.Combine(Backend.DirectoryFor(first), "runtime.log"), "\nNapCat Shell App Loading...\n正在快速登录");
         Assert(Backend.LoginHint(first).Contains("已有登录"), "latest startup supersedes older login error");
+        Backend.SetQuestionDelivery(first, true);
+        Assert(File.ReadAllText(Backend.ConfigFor(first) + ".question-policy.json").Contains("\"mobileRequired\":true"), "mobile question mode can be enabled explicitly");
+        Backend.SetQuestionDelivery(first, false);
+        Assert(File.ReadAllText(Backend.ConfigFor(first) + ".question-policy.json").Contains("\"mobileRequired\":false"), "desktop-first mode can be restored");
         Backend.SetMobileWake(first, true);
         Assert(File.ReadAllText(Backend.ConfigFor(first) + ".mobile-codex.json").Contains("true") && File.ReadAllText(Backend.ConfigFor(first) + ".mobile-dsh.json").Contains("true"), "both mobile wake switches enabled");
         Backend.SetMobileWake(first, false);

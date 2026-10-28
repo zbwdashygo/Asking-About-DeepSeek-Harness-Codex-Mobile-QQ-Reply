@@ -2,11 +2,11 @@
 
 让 Codex 和 DeepSeek Harness 的普通澄清问题先显示在电脑，再通过独立 QQ 小号发给自己的大号。手机回复会返回同一次提问；电脑和手机只采用一次有效答复。
 
-**Windows 10/11 x64 · .NET Framework 4.8 · 免费非商业集成 · 0.4.0-beta.3**
+**Windows 10/11 x64 · .NET Framework 4.8 · 免费非商业集成 · 0.4.0-beta.4**
 
 ## 下载和首次使用
 
-从本仓库 Releases 下载 `StellaRelay-0.4.0-beta.3-windows-x64.zip`，解压到固定、可写目录，双击 `StellaRelay.exe`。不要仅复制 EXE；保留旁边的 `app` 文件夹。
+从本仓库 Releases 下载 `StellaRelay-0.4.0-beta.4-windows-x64.zip`，解压到固定、可写目录，双击 `StellaRelay.exe`。不要仅复制 EXE；保留旁边的 `app` 文件夹。
 
 1. 填写自己的专用 QQ 小号和接收消息的大号。两个号码需要事先互加好友。点击“保存账号”。
 2. 点击“下载独立环境”，或导入上游 v4.18.38 的 `NapCat.Shell.Windows.Node.zip`。程序核对 SHA-256 后创建独立运行环境。
@@ -14,6 +14,12 @@
 4. 状态显示小号登录且大号好友核验成功后，进入“连接客户端”。
 
 首次下载约 124 MB，需能访问 GitHub。QQ 若限制登录，请在手机按 QQ 提示恢复；程序不处理验证码或绕过账号限制。
+
+## 手机文档问答（0.4.0-beta.4）
+
+在“连接客户端”点“手机文档问答”，选择“是”，普通问题会发到 QQ 并附上完整 TXT 文档。手机可直接回复“问题编号 答案”，无需先在电脑完成表单测试。文档上传失败时仍保留 QQ 文字问题和回复途径；手机答案不等待文件上传回执。选择“否”恢复原来的电脑优先模式。
+
+Codex 也可调用 `configure_question_delivery`，设 `mobileRequired: true`。升级后重载 MCP 和 DSH 插件；手机模式下直接使用现有提问工具，不先运行电脑测试。电脑表单仅在真实验证通过后附加显示，取消电脑卡片不取消手机待答。系统权限、沙箱审批不在手机代答。
 
 ## Codex
 
@@ -23,7 +29,7 @@
 
 > 先调用 stella_relay 的 test_desktop_form 验证电脑表单；之后普通澄清和选择题使用 ask_on_desktop。再发一个问题让我从手机 QQ 回答。
 
-每个新 MCP 连接需先在电脑真实提交一次表单；不支持原生表单时，保留电脑原有提问方式，不会退化为 QQ 独占。
+电脑优先模式每个新 MCP 连接需先在电脑真实提交一次表单；手机文档问答模式不以此为门槛，直接通过 QQ 回答。
 
 ## DeepSeek Harness
 
@@ -61,7 +67,7 @@
 
 ## 图片和办公文件双向传输
 
-0.4.0-beta.3 支持图片、PPT/PPTX、Word、Excel、PDF、文字和 ZIP，单个文件最多 100 MB。
+0.4.0-beta.4 支持图片、PPT/PPTX、Word、Excel、PDF、文字和 ZIP，单个文件最多 100 MB。
 
 电脑发手机：在 Codex 或 DSH 对助手说“把刚做好的 PPT 发到手机 QQ”。助手调用专用文件工具，仅发送当前工作目录中的文件到唯一配置大号。Codex 使用 `send_file_to_mobile`，DSH 使用 `stella_send_file_to_mobile`。每次传输编号只用一次，失败或超时不会自动重发。
 

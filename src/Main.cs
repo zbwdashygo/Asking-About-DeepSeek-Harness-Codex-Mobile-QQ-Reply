@@ -9,8 +9,8 @@ using System.Windows.Forms;
 [assembly: System.Reflection.AssemblyTitle("Stella Relay")]
 [assembly: System.Reflection.AssemblyDescription("Independent QQ question relay for Codex and DeepSeek Harness")]
 [assembly: System.Reflection.AssemblyVersion("0.4.0.0")]
-[assembly: System.Reflection.AssemblyFileVersion("0.4.0.3")]
-[assembly: System.Reflection.AssemblyInformationalVersion("0.4.0-beta.3")]
+[assembly: System.Reflection.AssemblyFileVersion("0.4.0.4")]
+[assembly: System.Reflection.AssemblyInformationalVersion("0.4.0-beta.4")]
 
 namespace StellaRelay {
   internal sealed class LoginWindow : Form {
@@ -60,7 +60,7 @@ namespace StellaRelay {
       Font = new Font("Microsoft YaHei UI", 10); BackColor = Color.FromArgb(244, 247, 250);
       try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { }
       Controls.Add(new Label { Text = "Stella Relay", Font = new Font("Segoe UI", 25, FontStyle.Bold), Bounds = new Rectangle(25, 15, 600, 55) });
-      Controls.Add(new Label { Text = "电脑先提问，手机 QQ 也能回答", ForeColor = Color.DimGray, Bounds = new Rectangle(28, 77, 600, 28) });
+      Controls.Add(new Label { Text = "电脑和手机 QQ 都能回答", ForeColor = Color.DimGray, Bounds = new Rectangle(28, 77, 600, 28) });
       TabControl tabs = new TabControl { Bounds = new Rectangle(25, 120, 630, 385) }; Controls.Add(tabs);
       TabPage account = new TabPage("1  账号与登录"), integrations = new TabPage("2  连接客户端"), about = new TabPage("说明");
       foreach (TabPage page in new[] { account, integrations, about }) { page.BackColor = Color.White; tabs.TabPages.Add(page); }
@@ -77,11 +77,11 @@ namespace StellaRelay {
       qr = Button(account, "登录二维码", 404, 210, delegate { try { RequireProfile(); using (LoginWindow window = new LoginWindow(profile)) window.ShowDialog(this); } catch (Exception e) { ShowError(e); } });
       account.Controls.Add(new Label { Text = "独立环境约 124 MB，仅从上游下载并核对 SHA-256。\n不读取已安装 QQ 的登录状态；退出本窗口后后台继续运行。", ForeColor = Color.DimGray, Bounds = new Rectangle(20, 274, 580, 56) });
       integrations.Controls.Add(new Label { Text = "Codex", Font = new Font(Font, FontStyle.Bold), Bounds = new Rectangle(20, 18, 550, 28) });
-      integrations.Controls.Add(new Label { Text = "选择项目后写入项目配置并保留备份。按 Codex 提示信任该项目，\n重新加载 stella_relay，然后让助手测试电脑表单与 QQ。", Bounds = new Rectangle(20, 55, 580, 65) });
+      integrations.Controls.Add(new Label { Text = "选择项目后写入项目配置并保留备份。按 Codex 提示信任该项目，\n重新加载 stella_relay，可选择手机文档问答或电脑优先。", Bounds = new Rectangle(20, 55, 580, 65) });
       attach = Button(integrations, "连接 Codex 项目", 20, 124, delegate { Attach(); });
       userAttach = Button(integrations, "Codex 全局启用", 212, 124, delegate {
         try { RequireProfile(); if (MessageBox.Show(this, "将备份后更新当前用户的 ~/.codex/config.toml 和 ~/.codex/AGENTS.md，让其他 Codex 项目也可使用普通问答转发工具。\n\n不修改项目信任或权限审批。已打开的聊天需要重新加载。是否继续？", "Codex 用户级启用", MessageBoxButtons.OKCancel, MessageBoxIcon.Information) != DialogResult.OK) return;
-          Backend.AttachUser(profile); MessageBox.Show(this, "用户级配置已保存。请重新加载 Codex 的 stella_relay 和聊天指令，再从电脑提交首次测试表单。", "配置完成");
+          Backend.AttachUser(profile); MessageBox.Show(this, "用户级配置已保存。请重新加载 Codex 的 stella_relay 和聊天指令，手机文档问答可直接从 QQ 回答；电脑优先需先测试表单。", "配置完成");
         } catch (Exception e) { ShowError(e); }
       });
       mobileOn = Button(integrations, "开启手机唤醒", 404, 124, delegate { try { RequireProfile(); Backend.SetMobileWake(profile, true); MessageBox.Show(this, "已开启两个平台的手机唤醒。请重启后台并重新加载客户端插件。Codex 中首次调用 configure_mobile_wake 启用桌面连接；DSH 保持打开。\n\n手机发送“列表 codex”或“列表 dsh”，再按列表编号发新任务。系统审批仍在电脑处理。", "手机主动唤醒"); } catch (Exception e) { ShowError(e); } });
@@ -89,6 +89,11 @@ namespace StellaRelay {
       integrations.Controls.Add(new Label { Text = "使用 DSH 原生提问插件。生成当前小号的插件配置后，\n按说明在 DSH 的插件管理页面安装本地组合包。", Bounds = new Rectangle(20, 226, 580, 55) });
       dsh = Button(integrations, "生成 DSH 配置", 20, 292, delegate { try { RequireProfile(); DshConfig.Export(profile); Open(Path.Combine(Backend.DirectoryFor(profile), "dsh-setup.txt")); } catch (Exception e) { ShowError(e); } });
       mobileOff = Button(integrations, "关闭手机唤醒", 212, 292, delegate { try { RequireProfile(); Backend.SetMobileWake(profile, false); MessageBox.Show(this, "手机主动唤醒将在几秒内停止，普通问答保留。", "手机主动唤醒"); } catch (Exception e) { ShowError(e); } });
+      Button(integrations, "手机文档问答", 404, 292, delegate {
+        try { RequireProfile(); DialogResult choice = MessageBox.Show(this, "是：普通问题必须发手机，并附 TXT 文档，不再要求先在电脑通过测试。\n否：恢复电脑优先、通过表单测试后转发 QQ。\n\n只影响普通问答，系统权限仍在电脑处理。", "选择问答方式", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Information);
+          if (choice == DialogResult.Cancel) return; Backend.SetQuestionDelivery(profile, choice == DialogResult.Yes); state.Text = choice == DialogResult.Yes ? "已开启手机文档问答，请重载客户端工具与规则" : "已恢复电脑优先问答";
+        } catch (Exception e) { ShowError(e); }
+      });
       TextBox help = new TextBox { Multiline = true, ReadOnly = true, BorderStyle = BorderStyle.None, BackColor = Color.White, ScrollBars = ScrollBars.Vertical, Bounds = new Rectangle(20, 20, 580, 255), Text =
         "首次使用：保存账号 → 下载或导入运行包 → 启动后台 → 小号扫码 → 连接客户端。\r\n\r\n手机按“问题编号 你的回答”回复；文字和选项数字均可。先收到的有效答复生效，另一端待答失效。\r\n\r\n系统权限、沙箱审批仍在电脑处理。QQ 限制登录时须由使用者在手机恢复。\r\n\r\n本程序免费供非商业使用。QQ 运行组件由使用者从上游获取并遵守其许可。不要分享本机数据目录或运行日志。\r\n\r\n升级：停止后台，在原程序目录替换发行文件后重新启动。更换程序目录前先移除旧后台任务。" }; about.Controls.Add(help);
       remove = Button(about, "移除后台任务", 20, 290, async delegate { await Run(async () => { RequireProfile(); await Task.Run(() => Backend.TaskState(profile, "remove")); state.Text = "当前小号的后台任务已移除，登录数据已保留"; }); });
@@ -115,7 +120,7 @@ namespace StellaRelay {
       try { RequireProfile(); using (FolderBrowserDialog folder = new FolderBrowserDialog { Description = "选择要启用 Stella Relay 的 Codex 项目" }) {
         if (folder.ShowDialog(this) != DialogResult.OK) return;
         if (MessageBox.Show(this, "将连接以下项目，并备份后更新该目录的 Codex 配置和 AGENTS.md：\n\n" + folder.SelectedPath + "\n\n是否继续？", "连接项目", MessageBoxButtons.OKCancel, MessageBoxIcon.Information) != DialogResult.OK) return;
-        Backend.AttachProject(profile, folder.SelectedPath); MessageBox.Show(this, "已连接。请回到 Codex，按应用提示信任此项目，再重新加载 stella_relay。让助手先测试电脑表单，再测试手机回复。", "连接完成");
+        Backend.AttachProject(profile, folder.SelectedPath); MessageBox.Show(this, "已连接。请回到 Codex，按应用提示信任此项目，再重新加载 stella_relay。可在“手机文档问答”启用手机必达；电脑优先需先测试表单。", "连接完成");
       } } catch (Exception e) { ShowError(e); }
     }
     private void ShowError(Exception e) { state.Text = "操作未完成"; MessageBox.Show(this, e is InvalidOperationException ? e.Message : "操作失败，请检查网络、目录写入权限或本机运行环境。", "Stella Relay", MessageBoxButtons.OK, MessageBoxIcon.Information); }
