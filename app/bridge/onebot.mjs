@@ -20,6 +20,7 @@ export class IsolatedQQ {
       const socket = this.socket = new this.Socket(url);
       const deadline = setTimeout(() => { reject(Error('独立 QQ 接口连接超时')); socket.close(); }, 10000);
       socket.addEventListener('open', async () => {
+        if (socket !== this.socket) return;
         try {
           const login = await this.call('get_login_info');
           if (String(login.user_id) !== c.botId) throw Error('QQ 登录账号不匹配');
@@ -30,6 +31,7 @@ export class IsolatedQQ {
         } catch (e) { clearTimeout(deadline); reject(e); socket.close(); }
       });
       socket.addEventListener('message', ({ data }) => {
+        if (socket !== this.socket) return;
         try {
           const m = JSON.parse(data);
           const call = this.calls.get(m.echo);
@@ -57,20 +59,31 @@ export class IsolatedQQ {
           }
         } catch { /* Ignore malformed frames; do not log message text or tokens. */ }
       });
-      socket.addEventListener('error', () => { clearTimeout(deadline); reject(Error('独立 QQ 接口连接失败')); });
+      socket.addEventListener('error', () => { if (socket !== this.socket) return; clearTimeout(deadline); reject(Error('独立 QQ 接口连接失败')); });
       socket.addEventListener('close', () => {
+        if (socket !== this.socket) return;
         clearTimeout(deadline); this.ready = false; this.connecting = null;
         reject(Error('独立 QQ 连接断开')); this.questions.disconnect();
         for (const p of this.calls.values()) { clearTimeout(p.timer); p.reject(Error('QQ 连接断开')); } this.calls.clear();
         for (const p of this.waiters.values()) { clearTimeout(p.timer); p.reject(Error('QQ 连接断开')); } this.waiters.clear();
       });
     });
-    return this.connecting;
+    const attempt = this.connecting;
+    try { return await attempt; }
+    catch (error) {
+      // A failed WebSocket handshake need not emit close. Clear that rejected
+      // promise so a later read-only login check can make a fresh connection.
+      if (this.connecting === attempt) {
+        this.connecting = null; this.ready = false;
+        try { this.socket?.close(); } catch {}
+      }
+      throw error;
+    }
   }
-  call(action, params = {}) {
+  call(action, params = {}, { timeoutMs = 10000 } = {}) {
     if (this.socket?.readyState !== WebSocket.OPEN) return Promise.reject(Error('QQ 尚未连接'));
     return new Promise((resolve, reject) => {
-      const echo = randomUUID(), timer = setTimeout(() => { this.calls.delete(echo); reject(Error('QQ 接口超时；不自动重发')); }, 10000);
+      const echo = randomUUID(), timer = setTimeout(() => { this.calls.delete(echo); reject(Error('QQ 接口超时；不自动重发')); }, Math.min(60000, Math.max(1000, timeoutMs)));
       this.calls.set(echo, { resolve, reject, timer }); this.socket.send(JSON.stringify({ action, params, echo }));
     });
   }

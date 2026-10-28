@@ -112,3 +112,20 @@ test('QQ 自由回答立即结束原表单，不等待 QQ 确认消息回执', a
     } finally { timeout.abort(); }
   } finally { qq.close(); }
 });
+
+test('QQ 尚未启动时握手失败无 close 事件，后续连接可恢复；旧连接事件不破坏新连接', async () => {
+  let count=0;
+  class StartupSocket extends Socket {
+    constructor() {
+      if (count++===0) {
+        // Return a separate socket that fails before the backend is listening.
+        const failed=new EventTarget();failed.readyState=3;failed.close=()=>{};
+        queueMicrotask(()=>failed.dispatchEvent(new Event('error')));return failed;
+      }
+      super();
+    }
+  }
+  const qq=new IsolatedQQ({config,Socket:StartupSocket});
+  try { await assert.rejects(qq.connect(),/连接失败/);const stale=qq.socket;await qq.connect();assert.equal(qq.ready,true);assert.equal(count,2);stale.dispatchEvent(new Event('close'));stale.dispatchEvent(new Event('error'));assert.equal(qq.ready,true); }
+  finally{qq.close();}
+});

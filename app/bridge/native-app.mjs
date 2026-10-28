@@ -3,6 +3,7 @@ import { createInterface } from 'node:readline';
 import { readdirSync, existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
+import { filePrompt } from './files.mjs';
 
 export function findDesktopTools() {
   const root = join(process.env.CODEX_HOME || join(homedir(), '.codex'), 'plugins', 'cache', 'openai-bundled', 'codex-app-tools');
@@ -38,7 +39,7 @@ export class DesktopToolsClient {
       createInterface({ input: child.stdout }).on('line', line => {
         try { if (this.child !== child) return; const m = JSON.parse(line), p = this.pending.get(m.id); if (!p) return; clearTimeout(p.timer); this.pending.delete(m.id); m.error ? p.reject(Error(m.error.message)) : p.resolve(m.result); } catch {}
       });
-      await this.request('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'stella-mobile-wake', version: '0.4.0-beta.2' } });
+      await this.request('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'stella-mobile-wake', version: '0.4.0-beta.3' } });
       this.child.stdin.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }) + '\n');
       const catalog = await this.request('tools/list', {});
       this.tools = new Set(catalog.tools.map(t => t.name));
@@ -67,7 +68,7 @@ export class DesktopToolsClient {
   }
   async listCurrent() {
     const data = await this.call('list_threads', { limit: 50 });
-    return [...(data.pinnedThreads ?? []), ...(data.threads ?? [])].filter(t => t.kind === 'codex' && (!t.hostId || t.hostId === 'local')).map(t => ({ id: t.id, title: t.title || t.id, status: t.status, hostId: t.hostId, updatedAt: t.updatedAt ?? 0 }));
+    return [...(data.pinnedThreads ?? []), ...(data.threads ?? [])].filter(t => t.kind === 'codex' && (!t.hostId || t.hostId === 'local')).map(t => ({ id: t.id, title: t.title || t.id, status: t.status, hostId: t.hostId, cwd: t.cwd, updatedAt: t.updatedAt ?? 0 }));
   }
   async list() {
     try { return await this.listCurrent(); }
@@ -104,6 +105,12 @@ export class DesktopToolsClient {
     const current = (await this.list()).find(t => t.id === thread.id);
     if (!current || current.status === 'active') throw Error('对话已不再空闲或不再可见，未发送');
     return this.call('send_message_to_thread', { threadId: thread.id, ...(thread.hostId ? { hostId: thread.hostId } : {}), prompt });
+  }
+  async sendFile(thread, fileId, note, store) {
+    const current = (await this.list()).find(t => t.id === thread.id);
+    if (!current?.cwd || ['active', 'running', 'inProgress', 'waiting'].includes(current.status)) throw Error('对话没有可用的工作目录，或还在忙');
+    const file = await store.stage(fileId, current.cwd);
+    return this.send(current, filePrompt(file, note));
   }
   disconnect() { const child = this.child; this.child = null; this.connecting = null; child?.kill(); this.fail(Error('Codex 桌面工具连接已关闭')); }
   close() { this.closed = true; this.disconnect(); }

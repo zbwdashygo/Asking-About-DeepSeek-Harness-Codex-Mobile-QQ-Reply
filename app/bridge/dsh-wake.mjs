@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { FileStore, filePrompt } from './files.mjs';
 import { MobileWake, WakeState } from './wake.mjs';
 import { readSettings, saveSettings, settingsFile } from './wake-settings.mjs';
 
@@ -25,9 +26,15 @@ export class DshWakeBackend {
           if (title) this.titles.set(header.id, title);
         } finally { await handle?.close(); }
       }
-      rows.push({ id: header.id, title: title || `${header.cwd ?? 'DSH'} · ${header.id}`, status: live?.status ?? 'notLoaded', updatedAt: activity.get(header.id) ?? header.createdAt });
+      rows.push({ id: header.id, title: title || `${header.cwd ?? 'DSH'} · ${header.id}`, status: live?.status ?? 'notLoaded', ...(header.cwd ? { cwd: header.cwd } : {}), updatedAt: activity.get(header.id) ?? header.createdAt });
     }
     return rows;
+  }
+  async sendFile(row, fileId, note, store) {
+    const current = (await this.list()).find(t => t.id === row.id);
+    if (!current?.cwd || ['active', 'running', 'inProgress', 'waiting'].includes(current.status)) throw Error('对话没有可用的工作目录，或还在忙');
+    const file = await store.stage(fileId, current.cwd);
+    return this.send(current, filePrompt(file, note));
   }
   async send(row, prompt) {
     const ctx = this.ctx;
@@ -53,7 +60,7 @@ export function dshMobileWake(ctx, mobile, configFile) {
       const enabled = readSettings(file).enabled === true;
       if (enabled && !service) {
         const state = new WakeState(configFile + '.dsh-wake-ledger.json'); state.data.enabled = true;
-        service = new MobileWake({ platform: 'dsh', mobile, backend: new DshWakeBackend(ctx), state });
+        service = new MobileWake({ platform: 'dsh', mobile, backend: new DshWakeBackend(ctx), state, files: new FileStore(configFile) });
         await service.start();
       } else if (!enabled && service) { service.stop(); service = undefined; }
     } catch (error) { lastError = error.message; service?.stop(); service = undefined; }

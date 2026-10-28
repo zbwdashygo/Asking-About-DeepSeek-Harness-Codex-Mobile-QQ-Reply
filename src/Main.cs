@@ -9,8 +9,8 @@ using System.Windows.Forms;
 [assembly: System.Reflection.AssemblyTitle("Stella Relay")]
 [assembly: System.Reflection.AssemblyDescription("Independent QQ question relay for Codex and DeepSeek Harness")]
 [assembly: System.Reflection.AssemblyVersion("0.4.0.0")]
-[assembly: System.Reflection.AssemblyFileVersion("0.4.0.2")]
-[assembly: System.Reflection.AssemblyInformationalVersion("0.4.0-beta.2")]
+[assembly: System.Reflection.AssemblyFileVersion("0.4.0.3")]
+[assembly: System.Reflection.AssemblyInformationalVersion("0.4.0-beta.3")]
 
 namespace StellaRelay {
   internal sealed class LoginWindow : Form {

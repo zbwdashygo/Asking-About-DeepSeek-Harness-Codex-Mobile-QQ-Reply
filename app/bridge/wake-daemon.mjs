@@ -3,6 +3,7 @@ import { configPath, loadConfig } from './config.mjs';
 import { IsolatedQQ } from './onebot.mjs';
 import { DesktopToolsClient } from './native-app.mjs';
 import { MobileWake, WakeState } from './wake.mjs';
+import { FileStore } from './files.mjs';
 const configFile = configPath(), config = loadConfig(), parentPid = process.argv.includes('--standalone') ? 0 : Number(process.env.STELLA_WAKE_PARENT_PID || process.ppid);
 let service, mobile, fingerprint, busy = false, stopping = false;
 async function reconcile() {
@@ -21,7 +22,7 @@ async function reconcile() {
       const updated = { ...current, pipe, serverPath }; saveSettings(file, updated);
       fingerprint = JSON.stringify(updated);
     } });
-    mobile = new IsolatedQQ({ config, configFile }); service = new MobileWake({ platform: 'codex', mobile, backend, state });
+    mobile = new IsolatedQQ({ config, configFile }); service = new MobileWake({ platform: 'codex', mobile, backend, state, files: new FileStore(configFile) });
     await service.start(); fingerprint = next;
   } catch { service?.stop(); mobile?.close(); service = mobile = undefined; fingerprint = null; }
   finally { busy = false; }

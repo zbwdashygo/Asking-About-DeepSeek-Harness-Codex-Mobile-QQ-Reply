@@ -11,6 +11,8 @@ export function parseWake(text) {
   text = text.trim();
   let m = /^(?:对话列表|列表)(?:\s+(codex|dsh))?(?:\s+([1-9][0-9]?))?$/i.exec(text);
   if (m) return { kind: 'list', platform: m[1]?.toLowerCase(), page: Number(m[2] ?? 1) };
+  m = /^文件\s+(codex|dsh)\s+([a-z]{2})\s+([1-9]\d{0,8})(?:\s+([\s\S]+))?$/i.exec(text);
+  if (m && (m[4]?.trim().length ?? 0) <= 10000) return { kind: 'file', platform: m[1].toLowerCase(), code: m[2].toUpperCase(), fileId: m[3], note: m[4]?.trim() ?? '' };
   m = /^(?:唤醒|发送)\s+(codex|dsh)\s+([a-z]{2}|[a-f0-9]{10})\s+([\s\S]+)$/i.exec(text);
   if (m && m[3].trim().length <= 10000) return { kind: 'send', platform: m[1].toLowerCase(), code: m[2].toUpperCase(), prompt: m[3].trim() };
   m = /^(?:唤醒帮助|唤醒状态)(?:\s+(codex|dsh))?$/i.exec(text);
@@ -75,8 +77,8 @@ export class WakeState {
 }
 
 export class MobileWake {
-  constructor({ platform, mobile, backend, state }) {
-    this.platform = platform; this.mobile = mobile; this.backend = backend; this.state = state; this.chain = Promise.resolve(); this.running = false;
+  constructor({ platform, mobile, backend, state, files }) {
+    this.files = files; this.platform = platform; this.mobile = mobile; this.backend = backend; this.state = state; this.chain = Promise.resolve(); this.running = false;
   }
   async start() {
     if (this.running) return;
@@ -99,7 +101,7 @@ export class MobileWake {
     const messageId = String(message.message_id); if (messageId.length > 120 || !this.state.reserve(messageId)) return false;
     try {
       if (command.kind === 'help') {
-        await this.reply(`我在呢。\n看最近 10 个对话：列表 ${this.platform}\n发任务：唤醒 ${this.platform} AA 任务内容\n权限确认还是在电脑上处理。`);
+        await this.reply(`我在呢。\n看最近 10 个对话：列表 ${this.platform}\n发任务：唤醒 ${this.platform} AA 任务内容\n传附件：先发文件，再发“文件 ${this.platform} AA 文件编号 你的要求”\n权限确认还是在电脑上处理。`);
       } else {
         const available = [...new Map((await this.backend.list()).map(row => [row.id, row])).values()];
         const rows = command.kind === 'list' ? recentRows(available) : available;
@@ -114,7 +116,10 @@ export class MobileWake {
           if (matches.length !== 1) throw Error(`代号没对上，发“列表 ${this.platform}”再看一下吧`);
           const row = matches[0];
           if (['active', 'running', 'inProgress', 'waiting'].includes(row.status)) throw Error('它还在忙，等这轮结束后再发吧');
-          await this.backend.send(row, command.prompt);
+          if (command.kind === 'file') {
+            if (!this.files || !this.backend.sendFile) throw Error('文件功能还没加载，请重启 Stella 和对应客户端');
+            await this.backend.sendFile(row, command.fileId, command.note, this.files);
+          } else await this.backend.send(row, command.prompt);
           await this.reply(`好，已交给 ${command.code}，等它处理。`);
         }
       }

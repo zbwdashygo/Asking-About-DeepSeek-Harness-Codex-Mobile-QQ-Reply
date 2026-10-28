@@ -4,6 +4,7 @@ import { normalizeMobileAnswer } from '../bridge/coordinator.mjs';
 import { validateQuestion } from '../bridge/coordinator.mjs';
 import { validateCompletion } from '../bridge/completion.mjs';
 import { dshMobileWake } from '../bridge/dsh-wake.mjs';
+import { FileStore, fileSchema } from '../bridge/files.mjs';
 
 export const name = 'stella-relay-dsh';
 export const inject = ['tools', 'userQuestions', 'agents', 'sessionPersistence', 'workspaceRegistry', 'sessionTitle', 'sessionController'];
@@ -50,6 +51,7 @@ export async function apply(ctx, config = {}) {
   ctx.on('dispose', () => mobile.close());
   const configure = dshMobileWake(ctx, mobile, location);
   ctx.tools.register({ name: 'stella_configure_mobile_wake', description: '按用户要求启用或关闭手机 QQ 主动唤醒 DSH 对话。发送“列表 dsh”查看编号，再发送“唤醒 dsh 编号 任务内容”；保留原生审批，忙碌对话不自动打断。DSH 需保持运行。', parameters: { type: 'object', properties: { enabled: { type: 'boolean' } }, required: ['enabled'], additionalProperties: false }, timeoutMs: 30000, output: { schema: { type: 'object', properties: { enabled: { type: 'boolean' }, running: { type: 'boolean' }, requiresDshOpen: { type: 'boolean' } }, required: ['enabled', 'running', 'requiresDshOpen'], additionalProperties: false }, render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }] }, execute(args) { if (!args || typeof args.enabled !== 'boolean' || Object.keys(args).some(k => k !== 'enabled')) throw Error('仅接受 enabled 开关'); return configure(args.enabled); } });
+  registerFileTools(ctx, mobile, location);
   registerTools(ctx, mobile);
 }
 
@@ -97,4 +99,15 @@ export function registerTools(ctx, mobile, defineTool = relayToolDefinition) {
       return result;
     }
   }));
+}
+
+export function registerFileTools(ctx, mobile, configFile) {
+  const store = new FileStore(configFile);
+  const receiptSchema = { type: 'object', properties: { sent: { type: 'boolean' }, transferId: { type: 'string' }, fileName: { type: 'string' }, bytes: { type: 'number' }, remoteId: { type: 'string' } }, required: ['sent', 'transferId', 'fileName', 'bytes', 'remoteId'], additionalProperties: false };
+  ctx.tools.register({ name: 'stella_send_file_to_mobile', description: '按用户要求把当前 DSH 工作目录的图片、PPT、Word、Excel、PDF 等文件发送给手机 QQ 唯一好友。每次使用唯一 transferId，失败不自动重发。', parameters: { type: 'object', properties: { transferId: { type: 'string' }, filePath: { type: 'string' } }, required: ['transferId', 'filePath'], additionalProperties: false }, timeoutMs: 90000, output: { schema: receiptSchema, render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }] }, async execute(args, exec) {
+    if (!exec?.agent?.session?.header?.cwd) throw Error('没有当前 DSH 对话的工作目录');
+    if (args && Object.keys(args).some(k => !['transferId','filePath'].includes(k))) throw Error('只能发送当前对话的文件');
+    return store.send(mobile, args, exec.agent.session.header.cwd);
+  } });
+  ctx.tools.register({ name: 'stella_list_mobile_files', description: '查看手机 QQ 发来的最近 10 个附件；使用文件编号和对话代号指定交给哪个对话。', parameters: { type: 'object', properties: {}, additionalProperties: false }, timeoutMs: 10000, output: { schema: { type: 'object', properties: { files: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' }, name: { type: 'string' }, size: { type: 'number' }, receivedAt: { type: 'number' } }, required: ['id','name','size','receivedAt'], additionalProperties: false } } }, required: ['files'], additionalProperties: false }, render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }] }, execute(args) { if (args && Object.keys(args).length) throw Error('收件箱不接受其他参数'); return { files: store.list() }; } });
 }
